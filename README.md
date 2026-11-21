@@ -57,7 +57,7 @@ One web app in `web/`, with no build step and no dependencies at run time:
 | `web/apps/*.png` | Each app’s icon, cropped from its repository. |
 | `web/fonts/fraunces.woff2`, `web/vendor/qrcode.js` | Fraunces (SIL Open Font License) and qrcode-generator (MIT). |
 | `desktop/` | The **Tauri 2** shell that wraps `web/` as the Mac, iPhone, iPad and Android app, as for Cowdrey.MD and Cowdrey.PDF. |
-| `design/icon.svg` | The icon’s source: the family’s “C”, as on Cowdrey.MD and Cowdrey.PDF, holding a grid of apps, in clay. |
+| `design/icon.svg` | The icon’s source: the family’s “C” with a 1, drawn like Cowdrey.MD and Cowdrey.PDF’s, in clay. |
 | `tests/e2e.cjs` | Catalog checks and end-to-end tests as an iPhone, an Android phone and a Mac, in Chromium. |
 
 ### Add an app
