@@ -81,8 +81,6 @@ main { padding: calc(var(--safe-t) + 12px) 0 calc(var(--safe-b) + 112px); margin
 .large-head > div { flex: 1; min-width: 0; }
 .eyebrow { margin: 0 0 2px; font-size: 13px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-2); }
 .large-title { margin: 0; font: 560 36px/1.05 var(--serif); letter-spacing: -.015em; text-wrap: balance; }
-.avatar { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 .5px var(--sep); flex: none; margin-bottom: 2px; }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
 .head-button { height: 34px; padding: 0 14px; border-radius: 999px; background: var(--fill); font-size: 15px; font-weight: 600; color: var(--clay-text); margin-bottom: 4px; }
 
 .navbar { position: fixed; z-index: 30; top: 0; left: var(--side); right: 0; height: calc(var(--safe-t) + 46px); padding-top: var(--safe-t);
@@ -109,7 +107,7 @@ main { padding: calc(var(--safe-t) + 12px) 0 calc(var(--safe-b) + 112px); margin
   background: radial-gradient(120% 70% at 85% 0%, rgba(255, 255, 255, .22), transparent 60%), radial-gradient(90% 60% at 0% 100%, rgba(0, 0, 0, .28), transparent 70%); }
 .feature-top { position: absolute; left: 22px; right: 22px; top: 20px; }
 .feature-top .eyebrow { color: rgba(255, 255, 255, .78); }
-.feature-top h3 { margin: 4px 0 0; font: 520 31px/1.08 var(--serif); letter-spacing: -.01em; max-width: 13ch; text-wrap: balance; }
+.feature-top h3 { margin: 4px 0 0; font: 520 31px/1.08 var(--serif); letter-spacing: -.01em; max-width: 17ch; text-wrap: balance; }
 .feature .art { position: absolute; inset: 104px 0 96px; display: grid; place-items: center; pointer-events: none; }
 .feature-bar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 10px;
   border-radius: 18px; background: rgba(255, 255, 255, .16); -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
@@ -348,7 +346,6 @@ button.meta { text-align: left; }
   .side-maker img { width: 34px; height: 34px; border-radius: 50%; }
   .side-maker b { display: block; font-size: 14px; }
   .side-maker small { display: block; font-size: 12px; color: var(--ink-2); }
-  .avatar[data-action="about"] { display: none; }
   .large-head { padding-top: 34px; }
   .large-title { font-size: 40px; }
   .carousel { grid-auto-columns: calc((100% - 14px) / 2); margin: -12px -40px -18px; padding: 16px 40px 26px; scroll-padding: 0 40px; }

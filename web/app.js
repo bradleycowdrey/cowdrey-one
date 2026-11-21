@@ -269,8 +269,7 @@
   function renderDiscover() {
     const half = Math.ceil(APPS.length / 2);
     $('#view-discover').innerHTML = `
-      <header class="large-head"><div><p class="eyebrow">${esc(dateLine())}</p><h1 class="large-title" id="t-discover">Discover</h1></div>
-        <button class="avatar" data-act="about" aria-label="About Bradley Cowdrey"><img src="bradley.jpg" alt=""></button></header>
+      <header class="large-head"><div><p class="eyebrow">${esc(dateLine())}</p><h1 class="large-title" id="t-discover">Discover</h1></div></header>
       <div class="carousel" tabindex="0" role="region" aria-roledescription="carousel" aria-label="Featured apps">${APPS.map(featureCard).join('')}</div>
       <div class="dots" role="tablist" aria-label="Featured apps">${APPS.map((a, i) => `<button role="tab" aria-label="${esc(a.name)}" aria-current="${i === 0}" data-act="slide" data-i="${i}"></button>`).join('')}</div>
       <section class="setup" id="setup-slot">${setupCard()}</section>
@@ -439,7 +438,7 @@
           <div class="fact"><div class="k">Platforms</div><div class="v">${plats.length}</div><div class="c">${plats.map((p) => ({ ios: 'iOS', android: 'Android', mac: 'Mac', web: 'Web' })[p]).join(' · ')}</div></div>
           <div class="fact"><div class="k">Category</div><div class="v">${icon({ Weather: 'cloud', Navigation: 'compass', Productivity: 'clock', Writing: 'doc', Documents: 'doc' }[a.category] || 'stack')}</div><div class="c">${esc(a.category)}</div></div>
           <div class="fact"><div class="k">Privacy</div><div class="v">${icon('lock')}</div><div class="c">No tracking</div></div>
-          <div class="fact"><div class="k">Developer</div><div class="v"><img src="bradley.jpg" alt="" style="width:24px;height:24px;border-radius:50%;margin:0 auto"></div><div class="c">Bradley Cowdrey</div></div>
+          <div class="fact"><div class="k">Developer</div><div class="v">${icon('person')}</div><div class="c">Bradley Cowdrey</div></div>
         </div>
         <div id="whats-new">${whatsNew(a)}</div>
         <div class="section-head"><h2>About</h2></div>
