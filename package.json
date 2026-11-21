@@ -1,0 +1,14 @@
+{
+  "name": "cowdrey-one",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cowdrey One by Bradley Cowdrey: every app in one place",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node tests/e2e.cjs",
+    "start": "python3 -m http.server 8080 --directory web"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

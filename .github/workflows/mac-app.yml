@@ -1,0 +1,101 @@
+name: Mac app
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    # Build a new DMG when the version number (or this workflow) changes on main.
+    paths:
+      - desktop/src-tauri/tauri.conf.json
+      - desktop/src-tauri/Cargo.toml
+      - .github/workflows/mac-app.yml
+  workflow_dispatch:
+
+# contents: write lets the job create the GitHub release and attach the DMG. This repository is private, so the
+# release is for Bradley only: give the DMG a public home before linking it from catalog.js (hubDownloads.mac).
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    name: Build CowdreyOne.dmg
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install the Tauri command line tools
+        working-directory: desktop
+        run: npm ci
+
+      - name: Bundle the web app
+        working-directory: desktop
+        run: node build.mjs
+
+      # Apple signing and notarization use the same six secrets as Two Degrees, Meridian and Cowdrey.PDF:
+      # DEVELOPER_ID_P12 (base64 .p12), DEVELOPER_ID_P12_PASSWORD, CODESIGN_IDENTITY,
+      # NOTARY_APPLE_ID, NOTARY_PASSWORD (app-specific password), NOTARY_TEAM_ID.
+      # They are handed to Tauri under its own names, and only when set: an empty APPLE_CERTIFICATE would make
+      # the build try to import a blank certificate and fail.
+      - name: Use the Apple Developer ID, if configured
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+          TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+        run: |
+          if [[ -z "$P12" ]]; then echo "No Developer ID secrets: building an unsigned app."; exit 0; fi
+          {
+            echo "APPLE_CERTIFICATE<<P12_EOF"; echo "$P12"; echo "P12_EOF"
+            echo "APPLE_CERTIFICATE_PASSWORD=$P12_PASSWORD"
+            if [[ -n "$IDENTITY" ]]; then echo "APPLE_SIGNING_IDENTITY=$IDENTITY"; fi
+            if [[ -n "$APPLE_ID" && -n "$APPLE_PASSWORD" && -n "$TEAM_ID" ]]; then
+              echo "APPLE_ID=$APPLE_ID"; echo "APPLE_PASSWORD=$APPLE_PASSWORD"; echo "APPLE_TEAM_ID=$TEAM_ID"
+            fi
+          } >> "$GITHUB_ENV"
+          echo "Signing with the Developer ID certificate."
+
+      # A universal app (Apple silicon and Intel) and DMG, attached to the version's GitHub release.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
+          releaseName: Cowdrey One v__VERSION__
+          releaseBody: |
+            Cowdrey One for Mac, by Bradley Cowdrey (https://bradcowdrey.com): every app in one place.
+
+            Open the .dmg and drag Cowdrey One into Applications. It runs on Apple silicon and Intel Macs, macOS 12 or later.
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin
+
+      - name: Keep a fixed-name copy of the DMG (CowdreyOne.dmg) on the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          cp "desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Cowdrey One_${V}_universal.dmg" "$RUNNER_TEMP/CowdreyOne.dmg"
+          gh release upload "v$V" "$RUNNER_TEMP/CowdreyOne.dmg" --clobber --repo "$GITHUB_REPOSITORY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CowdreyOne-Mac
+          path: ${{ runner.temp }}/CowdreyOne.dmg
+          if-no-files-found: ignore

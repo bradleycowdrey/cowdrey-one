@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cowdrey One",
+  "version": "1.0.0",
+  "identifier": "com.bradcowdrey.cowdreyone",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Cowdrey One",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 420,
+        "minHeight": 600,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "category": "Utility",
+    "publisher": "Bradley Cowdrey",
+    "copyright": "© 2026 Bradley Cowdrey. All rights reserved.",
+    "homepage": "https://bradcowdrey.com",
+    "shortDescription": "Every Bradley Cowdrey app in one place",
+    "longDescription": "Cowdrey One gathers every free app by Bradley Cowdrey in one place, with the right download for each device, and shows when there is a new version.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    },
+    "iOS": {
+      "developmentTeam": "2XV97FZ86G",
+      "minimumSystemVersion": "16.0"
+    },
+    "android": {
+      "minSdkVersion": 26
+    }
+  }
+}

@@ -1,0 +1,42 @@
+name: Web app (GitHub Pages)
+
+# Publishes web/ at https://bradleycowdrey.github.io/cowdrey-one/ on every push to main: the address the QR code
+# and Share link use (catalog.js, hubUrl). The site is public even though this repository is private; GitHub Pages
+# for a private repository needs a paid GitHub plan. If the deploy step fails for that reason, either turn Pages on
+# under Settings, Pages, or host web/ elsewhere (for example bradcowdrey.com/one) and change hubUrl.
+on:
+  push:
+    branches: [main]
+    paths:
+      - web/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Turn on GitHub Pages (if it is off) and set it to publish from this workflow
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Collect the site
+        run: mkdir -p _site && cp -R web/. _site/ && touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,28 @@
+[package]
+name = "cowdrey-one"
+version = "1.0.0"
+description = "Cowdrey One: every app by Bradley Cowdrey in one place"
+authors = ["Bradley Cowdrey"]
+license-file = "../../LICENSE"
+publish = false
+edition = "2021"
+
+# The Mac app runs main.rs; the iPhone, iPad and Android apps load the same code from this library.
+[lib]
+name = "cowdrey_one_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# App Store pages, downloads and web apps open in the system's own browser or store.
+tauri-plugin-opener = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

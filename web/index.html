@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cowdrey One</title>
+<meta name="description" content="Every free app by Bradley Cowdrey in one place: get each one for your iPhone, iPad, Android phone, Mac or browser, and see when there’s a new version. No ads, no account, no tracking.">
+<meta property="og:title" content="Cowdrey One">
+<meta property="og:description" content="Every free app by Bradley Cowdrey in one place, for iPhone, Android, Mac and the web.">
+<meta property="og:image" content="icon-512.png">
+<meta name="theme-color" content="#F5F2EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cowdrey One">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon-64.png" sizes="64x64">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="dragbar" data-tauri-drag-region></div>
+
+<!-- Mac and wide screens: a sidebar, as in the Mac App Store. Phones: a floating tab bar. -->
+<aside class="sidebar" aria-label="Cowdrey One">
+  <div class="side-brand"><img src="icon-192.png" alt=""><span>Cowdrey One</span></div>
+  <nav class="side-nav" aria-label="Sections">
+    <button class="side-item" data-act="tab" data-tab="discover"><svg><use href="#i-sparkles"/></svg><span>Discover</span></button>
+    <button class="side-item" data-act="tab" data-tab="library"><svg><use href="#i-stack"/></svg><span>Library</span><b class="badge" hidden></b></button>
+    <button class="side-item" data-act="tab" data-tab="share"><svg><use href="#i-qr"/></svg><span>Get on Your Phone</span></button>
+  </nav>
+  <p class="side-label">Apps</p>
+  <nav class="side-apps" aria-label="Apps"></nav>
+  <button class="side-maker" data-action="about"><img src="bradley.jpg" alt=""><span><b>Bradley Cowdrey</b><small>bradcowdrey.com</small></span></button>
+</aside>
+
+<main id="main">
+  <section class="view" id="view-discover" data-title="Discover" aria-labelledby="t-discover"></section>
+  <section class="view" id="view-library" data-title="Library" aria-labelledby="t-library" hidden></section>
+  <section class="view" id="view-share" data-title="Share" aria-labelledby="t-share" hidden></section>
+</main>
+
+<!-- The compact title that appears once the large title scrolls away -->
+<header class="navbar" aria-hidden="true"><span class="navbar-title"></span></header>
+
+<nav class="tabbar" aria-label="Sections">
+  <button class="tab" data-act="tab" data-tab="discover"><svg><use href="#i-sparkles"/></svg><span>Discover</span></button>
+  <button class="tab" data-act="tab" data-tab="library"><svg><use href="#i-stack"/></svg><span>Library</span><b class="badge" hidden></b></button>
+  <button class="tab" data-act="tab" data-tab="share"><svg><use href="#i-qr"/></svg><span>Share</span></button>
+</nav>
+
+<div class="scrim" hidden></div>
+<div class="sheet-host"></div>
+<div class="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- Icons, drawn after SF Symbols: 24 × 24, 1.8 stroke -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.4a2 2 0 0 0 1.2 1.2L19.2 10.7l-4.4 1.6a2 2 0 0 0-1.2 1.2L12 17.9l-1.6-4.4a2 2 0 0 0-1.2-1.2L4.8 10.7l4.4-1.6a2 2 0 0 0 1.2-1.2z" fill="currentColor"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" fill="currentColor"/></symbol>
+    <symbol id="i-stack" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="8.5" width="17" height="12" rx="3"/><path d="M6 5.5h12M8.5 2.75h7" stroke-linecap="round"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.6"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.6"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.6"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 19.5h1.5M19.5 14v1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-iphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6.5" y="2.5" width="11" height="19" rx="2.6"/><path d="M10.5 5h3" stroke-linecap="round"/></symbol>
+    <symbol id="i-android" viewBox="0 0 24 24"><path fill="currentColor" d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.87 3.23A11.4 11.4 0 0 0 12 8.13c-1.8 0-3.5.38-4.91 1.02L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48C3.3 11.16 1.2 14.29 1 18h22c-.2-3.71-2.3-6.84-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></symbol>
+    <symbol id="i-mac" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="10.5" rx="1.8"/><path d="M2 18.5h20l-1 1.5H3z" fill="currentColor" stroke-width="1.2"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7.5 12.3l3 3 6-6.3" fill="none" stroke="var(--on-accent, #fff)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14.5V3M8 6.5L12 2.5l4 4"/><path d="M8.5 9.5H7a2.5 2.5 0 0 0-2.5 2.5v7A2.5 2.5 0 0 0 7 21.5h10a2.5 2.5 0 0 0 2.5-2.5v-7A2.5 2.5 0 0 0 17 9.5h-1.5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.66 0l3.17-3.17a4 4 0 0 0-5.66-5.66L11.8 6.5"/><path d="M14 10a4 4 0 0 0-5.66 0L5.17 13.17a4 4 0 0 0 5.66 5.66l1.37-1.33"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v8.5M8.5 12.5L12 16l3.5-3.5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 1 0 17.7 17"/><path d="M20.5 5v6.5H14"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="4.5" rx="1.2"/><path d="M5 12.5v7a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-7M12 8v13M12 8c-1.5-3.5-5.5-4-5.5-1.5S10 8 12 8zm0 0c1.5-3.5 5.5-4 5.5-1.5S14 8 12 8z"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14"/></symbol>
+    <symbol id="i-plus-square" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M20.2 14.6A8.5 8.5 0 0 1 9.4 3.8a8.5 8.5 0 1 0 10.8 10.8z"/></symbol>
+    <symbol id="i-device" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="5" width="13" height="10" rx="1.6"/><path d="M1.5 18h15"/><rect x="17" y="8" width="5.5" height="11" rx="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7.5 12h9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3h5M10.5 3v5.5L5 18.5A1.7 1.7 0 0 0 6.5 21h11a1.7 1.7 0 0 0 1.5-2.5l-5.5-10V3"/><path d="M7.5 14.5h9"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 9.6 4.5 4.5 0 0 0 7 18.5z"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6.5 2.5h7l5 5v12.5a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5 20V4a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M13.5 2.5v5h5M8.5 13h7M8.5 16.5h5" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<script src="catalog.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

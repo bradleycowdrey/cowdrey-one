@@ -1,0 +1,13 @@
+{
+  "name": "cowdrey-one-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cowdrey One by Bradley Cowdrey: the Tauri app shell around web/ for Mac, iPhone, iPad and Android",
+  "scripts": {
+    "prepare-web": "node build.mjs",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1"
+  }
+}

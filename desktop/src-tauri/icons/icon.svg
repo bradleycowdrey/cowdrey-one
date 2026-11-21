@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Cowdrey Apps: the family's "C" (as on Cowdrey.MD and Cowdrey.PDF) holding a grid of apps, on bradcowdrey.com clay. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D3946B"/>
+      <stop offset=".55" stop-color="#BC754F"/>
+      <stop offset="1" stop-color="#97553A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".28" cy=".18" r=".75">
+      <stop offset="0" stop-color="#FFF6EC" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#FFF6EC" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <g id="glyph" transform="translate(57 0)">
+    <path d="M 571.3 312.8 A 268 268 0 1 0 571.3 711.2" fill="none" stroke="#FBF9F5" stroke-width="104" stroke-linecap="round"/>
+    <g fill="#FBF9F5">
+      <rect x="578" y="382" width="116" height="116" rx="32"/>
+      <rect x="722" y="382" width="116" height="116" rx="32" fill-opacity=".8"/>
+      <rect x="578" y="526" width="116" height="116" rx="32" fill-opacity=".8"/>
+      <rect x="722" y="526" width="116" height="116" rx="32" fill-opacity=".55"/>
+    </g>
+  </g>
+</svg>

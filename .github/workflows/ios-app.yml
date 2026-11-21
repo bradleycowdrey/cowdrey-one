@@ -1,0 +1,151 @@
+name: iPhone app
+
+# Builds, signs and uploads to TestFlight only; it never creates or submits an App Store version.
+# Needs an app record with bundle ID com.bradcowdrey.cowdreyone in App Store Connect (Apps, +, New App).
+
+on:
+  push:
+    branches: [main]
+    # Build a new iPhone and iPad version when the version number, the Rust code or this workflow changes.
+    paths:
+      - desktop/src-tauri/tauri.conf.json
+      - desktop/src-tauri/Cargo.toml
+      - desktop/src-tauri/src/**
+      - desktop/src-tauri/capabilities/**
+      - .github/workflows/ios-app.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: Build Cowdrey One for iPhone and iPad
+    runs-on: macos-latest
+    env:
+      IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+      # The App Store Connect API key the other apps use (Users and Access, Integrations, Admin access). With it,
+      # Xcode makes the Apple Distribution certificate and App Store profile itself, and the build goes to TestFlight.
+      APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      HAS_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install the Tauri command line tools
+        working-directory: desktop
+        run: npm ci
+
+      - name: Bundle the web app
+        working-directory: desktop
+        run: node build.mjs
+
+      # Without the API key, only prove the iOS code compiles: nothing is signed or uploaded.
+      - name: Compile for iOS (no App Store key yet)
+        if: env.HAS_KEY == 'false'
+        working-directory: desktop/src-tauri
+        run: cargo build --release --lib --target aarch64-apple-ios
+
+      # Signs a short-lived token and asks App Store Connect two questions, so a wrong key, a key without Admin
+      # access or a missing app record fails here with a clear message.
+      - name: Check the App Store Connect key
+        if: env.HAS_KEY == 'true'
+        env:
+          P8: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography 2>/dev/null || python3 -m pip install --quiet pyjwt cryptography
+          python3 - <<'PY'
+          import os, sys, time, json, urllib.request, urllib.error, jwt
+          p8 = os.environ["P8"].replace("\r", "").strip()
+          try:
+              tok = jwt.encode({"iss": os.environ["APPLE_API_ISSUER"].strip(), "iat": int(time.time()), "exp": int(time.time()) + 600,
+                                "aud": "appstoreconnect-v1"}, p8, algorithm="ES256", headers={"kid": os.environ["APPLE_API_KEY"].strip(), "typ": "JWT"})
+          except Exception as e:
+              sys.exit("The APP_STORE_CONNECT_API_KEY secret is not a valid .p8 private key: %s" % e)
+          ok = True
+          for name, url in [("app record", "https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=com.bradcowdrey.cowdreyone"),
+                            ("certificates (needs Admin)", "https://api.appstoreconnect.apple.com/v1/certificates?limit=1")]:
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "Bearer " + tok})) as r:
+                      n = len(json.load(r).get("data", []))
+                      print("%s: HTTP %d, %d found" % (name, r.status, n))
+                      if name == "app record" and n == 0:
+                          print("No app with bundle ID com.bradcowdrey.cowdreyone in App Store Connect yet: create it under Apps, + New App.")
+              except urllib.error.HTTPError as e:
+                  ok = False
+                  print("%s: HTTP %d %s" % (name, e.code, e.read().decode(errors="replace")[:400]))
+          sys.exit(0 if ok else "App Store Connect refused the key. See the lines above.")
+          PY
+
+      - name: Create the Xcode project
+        if: env.HAS_KEY == 'true'
+        working-directory: desktop
+        run: |
+          set -o pipefail
+          npx tauri ios init --ci
+          # Full-bleed icon: iOS rounds the corners itself.
+          npx tauri icon src-tauri/icons/ios-source.png
+          PLIST=$(find src-tauri/gen/apple -name Info.plist -path '*_iOS*' | head -1)
+          # Uses only the encryption built into iOS, so no export compliance questions on each upload.
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST"
+
+      # Each run signs on a fresh machine: Xcode makes an "Apple Development: Created via API" certificate whose
+      # private key dies with the machine, and Apple caps how many an account may hold. Revoke only those;
+      # Developer ID, Apple Distribution and any certificate with a person's name are never touched.
+      - name: Clear earlier builds' throwaway signing certificates
+        if: env.HAS_KEY == 'true'
+        env:
+          P8: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os, time, json, urllib.request, jwt
+          tok = jwt.encode({"iss": os.environ["APPLE_API_ISSUER"].strip(), "iat": int(time.time()), "exp": int(time.time()) + 600,
+                            "aud": "appstoreconnect-v1"}, os.environ["P8"].replace("\r", "").strip(), algorithm="ES256",
+                           headers={"kid": os.environ["APPLE_API_KEY"].strip(), "typ": "JWT"})
+          def call(method, path):
+              req = urllib.request.Request("https://api.appstoreconnect.apple.com/v1" + path, method=method, headers={"Authorization": "Bearer " + tok})
+              with urllib.request.urlopen(req) as r:
+                  raw = r.read()
+                  return json.loads(raw) if raw else {}
+          for c in call("GET", "/certificates?limit=200&fields[certificates]=name,displayName,certificateType")["data"]:
+              a = c["attributes"]; name = a.get("name") or a.get("displayName") or ""
+              if a.get("certificateType") in ("DEVELOPMENT", "IOS_DEVELOPMENT") and "Created via API" in name:
+                  call("DELETE", "/certificates/" + c["id"]); print("Revoked throwaway certificate:", name)
+          PY
+
+      - name: Build, sign and upload to TestFlight
+        if: env.HAS_KEY == 'true'
+        working-directory: desktop
+        env:
+          P8: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          set -o pipefail
+          mkdir -p ~/.appstoreconnect/private_keys
+          KEY=~/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY}.p8
+          printf '%s\n' "$P8" > "$KEY"
+          export APPLE_API_KEY_PATH="$KEY"
+          npx tauri ios build --export-method app-store-connect --build-number ${{ github.run_number }}
+          IPA=$(find src-tauri/gen/apple/build -name '*.ipa' | head -1)
+          cp "$IPA" "$RUNNER_TEMP/CowdreyOne.ipa"
+          xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APPLE_API_KEY" --apiIssuer "$APPLE_API_ISSUER"
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          name: CowdreyOne-iOS
+          path: ${{ runner.temp }}/CowdreyOne.ipa
+          if-no-files-found: ignore

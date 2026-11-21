@@ -1,0 +1,17 @@
+Cowdrey One
+Copyright © 2026 Bradley Cowdrey. All rights reserved.
+
+This software and its source code are proprietary and confidential. No licence is granted to copy, modify,
+distribute or create derivative works from it, in whole or in part, without written permission from
+Bradley Cowdrey. Use of the published app is governed by the Terms of Use and Privacy at
+https://bradcowdrey.com/legal.
+
+The apps that Cowdrey One lists are separate works, each under its own licence in its own repository.
+
+Third-party components included in Cowdrey One, under their own licences:
+
+- Fraunces (web/fonts/fraunces.woff2), by The Fraunces Project Authors, under the SIL Open Font License 1.1
+  (web/fonts/Fraunces-LICENSE.txt).
+- QR Code Generator for JavaScript (web/vendor/qrcode.js), by Kazuhiko Arase, under the MIT License
+  (notice at the top of the file).
+- Tauri and its plugins (desktop/), under the MIT License or the Apache License 2.0.

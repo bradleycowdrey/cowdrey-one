@@ -1,0 +1,27 @@
+name: Tests
+
+# The catalog checks and the end-to-end tests (iPhone, Android and Mac in Chromium) on every push and pull request.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: The native apps' version numbers match
+        working-directory: desktop
+        run: node build.mjs
