@@ -516,6 +516,9 @@
   }
 
   /* ---------- Sheets ---------- */
+  // Back closes a sheet (Android's Back button, a browser's Back). Some embedded views refuse history changes: then
+  // sheets still open and close, just without Back.
+  const hist = (fn) => { try { fn(); return true; } catch (e) { return false; } };
   const host = $('.sheet-host'), scrim = $('.scrim');
   let sheet = null, sheetKind = null, ignorePop = false, lastFocus = null;
   function openSheet(html, { onSky = false, short = false, kind = 'app', locked = false } = {}) {
@@ -532,8 +535,8 @@
     document.documentElement.style.overflow = 'hidden';
     requestAnimationFrame(() => requestAnimationFrame(() => { scrim.classList.add('on'); s.classList.add('on'); }));
     s.focus({ preventScroll: true });
-    if (replacing) history.replaceState({ sheet: 1 }, '');
-    else history.pushState({ sheet: 1 }, '');
+    if (replacing) hist(() => history.replaceState({ sheet: 1 }, ''));
+    else hist(() => history.pushState({ sheet: 1 }, ''));
     drag(s);
   }
   function closeSheet(fromPop) {
@@ -542,12 +545,12 @@
     s.classList.remove('on'); scrim.classList.remove('on');
     setTimeout(() => { s.remove(); if (!sheet) scrim.hidden = true; }, 420);
     document.documentElement.style.overflow = '';
-    if (!fromPop && history.state && history.state.sheet) { ignorePop = true; history.back(); }
+    if (!fromPop && history.state && history.state.sheet) { ignorePop = true; if (!hist(() => history.back())) ignorePop = false; }
     if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
   }
   window.addEventListener('popstate', () => {
     if (ignorePop) { ignorePop = false; return; }
-    if (sheet && sheet.dataset.locked) { history.pushState({ sheet: 1 }, ''); return; }
+    if (sheet && sheet.dataset.locked) { hist(() => history.pushState({ sheet: 1 }, '')); return; }
     if (sheet) closeSheet(true);
   });
   scrim.addEventListener('click', () => closeSheet());
@@ -638,7 +641,7 @@
     $$('.view').forEach((v) => { v.hidden = v.id !== 'view-' + t; });
     $$('.tab, .side-item').forEach((b) => { if (b.dataset.tab === t) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     $('.navbar-title').textContent = t === 'share' && !isPhone() ? 'Get on Your Phone' : titles[t];
-    history.replaceState(history.state, '', t === 'discover' ? location.pathname + location.search : '#' + t);
+    hist(() => history.replaceState(history.state, '', t === 'discover' ? location.pathname + location.search : '#' + t));
     window.scrollTo(0, 0);
     watchTitle();
   }
@@ -756,7 +759,9 @@
 
   // Check for new versions at most every 6 hours, quietly.
   if (Date.now() - checkedAt > 6 * 3600e3 && navigator.onLine !== false) setTimeout(() => checkUpdates(true), 1200);
-  if ('serviceWorker' in navigator && location.protocol === 'https:' && !isTauri) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && !isTauri) {
+    try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) { /* not allowed here: it still works online */ }
+  }
 
   // For the tests and for anyone curious in the console.
   window.CowdreyOne = { VERSION, state: (id) => state(byId[id]), platform: plat, checkUpdates };
