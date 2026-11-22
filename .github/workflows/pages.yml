@@ -23,6 +23,9 @@ concurrency:
 
 jobs:
   deploy:
+    # Off until Pages can be turned on for this repository: then add a repository variable PAGES_ENABLED = true
+    # (Settings, Secrets and variables, Actions, Variables), and this publishes on the next push.
+    if: vars.PAGES_ENABLED == 'true'
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
