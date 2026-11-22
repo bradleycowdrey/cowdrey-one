@@ -8,6 +8,7 @@ on:
     paths:
       - desktop/src-tauri/tauri.conf.json
       - desktop/src-tauri/Cargo.toml
+      - desktop/src-tauri/src/**
       - .github/workflows/mac-app.yml
   workflow_dispatch:
 

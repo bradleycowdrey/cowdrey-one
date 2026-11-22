@@ -19,6 +19,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 # App Store pages, downloads and web apps open in the system's own browser or store.
 tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Installing on iPhone, iPad and Android (plugins/installer): Android's package installer, the App Store page.
+tauri-plugin-installer = { path = "plugins/installer" }
 
 [profile.release]
 codegen-units = 1

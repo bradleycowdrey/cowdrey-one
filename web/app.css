@@ -77,6 +77,8 @@ main { padding: calc(var(--safe-t) + 12px) 0 calc(var(--safe-b) + 112px); margin
 .view { max-width: 1040px; margin: 0 auto; padding: 0 20px; animation: fade .35s var(--ease); }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
+.brandbar { display: flex; align-items: center; gap: 9px; padding: 6px 0 0; font: 560 19px/1 var(--serif); letter-spacing: -.01em; }
+.brandbar img { width: 28px; height: 28px; border-radius: 22.5%; box-shadow: 0 0 0 .5px var(--sep); }
 .large-head { display: flex; align-items: flex-end; gap: 12px; padding: 18px 0 14px; }
 .large-head > div { flex: 1; min-width: 0; }
 .eyebrow { margin: 0 0 2px; font-size: 13px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-2); }
@@ -170,6 +172,7 @@ button.meta { text-align: left; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 24px; border-radius: 14px;
   background: var(--clay-button); color: var(--on-accent); font-size: 17px; font-weight: 600; transition: transform .15s, opacity .2s; }
 .button:active { transform: scale(.98); opacity: .9; }
+.button:disabled { opacity: .6; }
 .button.wide { width: 100%; }
 .button.quiet { background: var(--fill); color: var(--clay-text); }
 .button svg { width: 20px; height: 20px; }
@@ -327,6 +330,7 @@ button.meta { text-align: left; }
 @media (min-width: 900px) {
   :root { --side: 264px; }
   .tabbar { display: none; }
+  .brandbar { display: none; }
   main { padding-bottom: 60px; }
   .view { padding: 0 40px; }
   .sidebar { display: flex; flex-direction: column; position: fixed; z-index: 45; left: 0; top: 0; bottom: 0; width: var(--side); padding: calc(var(--safe-t) + 18px) 12px 14px;

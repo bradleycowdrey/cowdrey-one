@@ -5,6 +5,9 @@
    - platforms: each has a requirement line and its ways to get the app, best first. kind is one of
      appstore, testflight, macappstore, dmg, apk, web. Leave a platform out if the app isn't on it.
    - status: optional label on the card, e.g. "New" or "Preview".
+   - bundle and macApp: how the Mac and Android apps of Cowdrey One find the app on the device (its Android package
+     and Mac bundle ID, and its name in Applications). A new Android app also goes in the <queries> list of
+     desktop/src-tauri/plugins/installer/android/src/main/AndroidManifest.xml.
    The apps appear in this order everywhere: keep it the same as the software section of bradcowdrey.com. */
 window.CATALOG = {
   // Where Cowdrey One lives on the web: the QR code and Share link go here. pages.yml publishes web/ to it.
@@ -19,6 +22,8 @@ window.CATALOG = {
   apps: [
     {
       id: 'cowdrey-pdf',
+      bundle: 'com.bradcowdrey.cowdreypdf',      // Android package and Mac bundle ID
+      macApp: 'Cowdrey.PDF.app',
       name: 'Cowdrey.PDF',
       subtitle: 'Edit, comment, organize and protect PDFs',
       headline: 'Sign it. Fill it. Fix it.',
@@ -46,6 +51,8 @@ window.CATALOG = {
     },
     {
       id: 'cowdrey-md',
+      bundle: 'com.bradcowdrey.cowdreymd',      // Android package and Mac bundle ID
+      macApp: 'Cowdrey.MD.app',
       name: 'Cowdrey.MD',
       subtitle: 'Markdown that feels like Docs and Word',
       headline: 'Write in Markdown. Read a page.',
@@ -75,6 +82,8 @@ window.CATALOG = {
     },
     {
       id: 'meridian',
+      bundle: 'com.bradcowdrey.meridian',      // Android package and Mac bundle ID
+      macApp: 'Meridian.app',
       name: 'Meridian',
       subtitle: 'A world clock and time-zone planner',
       headline: 'Every time zone at a glance.',
@@ -103,6 +112,8 @@ window.CATALOG = {
     },
     {
       id: 'two-degrees',
+      bundle: 'com.bradcowdrey.twodegrees',      // Android package and Mac bundle ID
+      macApp: 'TwoDegrees.app',
       name: 'Two Degrees',
       subtitle: 'The weather in °F and °C at once',
       headline: 'Two scales. One forecast.',
@@ -132,6 +143,8 @@ window.CATALOG = {
     },
     {
       id: 'bearings',
+      bundle: 'com.bradcowdrey.bearings',      // Android package and Mac bundle ID
+      macApp: 'Bearings.app',
       name: 'Bearings',
       subtitle: 'Compass, place, elevation, sun and moon',
       headline: 'Get your bearings.',

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Hand downloaded APKs to Android's package installer, which asks before each install. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- See which of Bradley Cowdrey's apps are installed, and their versions. Add a package here when an
+         Android app is added to web/catalog.js. -->
+    <queries>
+        <package android:name="com.bradcowdrey.cowdreypdf" />
+        <package android:name="com.bradcowdrey.cowdreymd" />
+        <package android:name="com.bradcowdrey.meridian" />
+        <package android:name="com.bradcowdrey.twodegrees" />
+        <package android:name="com.bradcowdrey.bearings" />
+    </queries>
+</manifest>

@@ -73,7 +73,10 @@ async function context(browser, base, opts, releases) {
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
         body: JSON.stringify({ tag_name: 'v' + v, name: 'v' + v, published_at: '2026-11-20T12:00:00Z', body: `- What changed in ${v}`, html_url: 'https://github.com/x' }) });
     }
-    return route.fulfill({ status: 200, contentType: 'text/plain', body: '' });   // stores, downloads, web apps
+    if (/\.(dmg|apk)$/.test(u)) {   // a download, as GitHub sends it: the page stays where it is
+      return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: 'x', headers: { 'content-disposition': 'attachment; filename=app' } });
+    }
+    return route.fulfill({ status: 200, contentType: 'text/plain', body: '' });   // stores and web apps
   });
   return { ctx, seen };
 }
@@ -99,6 +102,7 @@ async function open(ctx, url, errors, name) {
     const { ctx, seen } = await context(browser, base, { ...devices['iPhone 15 Pro'] }, current);
     const p = await open(ctx, base, errors, 'iphone');
     check(await p.isVisible('.sheet [data-act="agree"]'), 'first launch asks to agree to the Terms');
+    check((await p.textContent('#view-discover .brandbar')).trim() === 'Cowdrey One', 'the Cowdrey One label is at the top of the screen');
     await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     check(await p.isVisible('.sheet [data-act="agree"]'), 'the Terms sheet stays until Continue');
     await p.click('[data-act="agree"]'); await p.waitForTimeout(600);
@@ -162,6 +166,102 @@ async function open(ctx, url, errors, name) {
     check(/\.apk$/.test(await p.getAttribute('#all-apps [data-id="two-degrees"] a.pill', 'href')), 'choosing Android shows Android downloads');
     await p.click('[data-act="appearance"][data-v="dark"]');
     check(await p.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'Appearance: Dark switches the theme');
+    await ctx.close();
+  }
+
+  // ---------- Mac in a browser: Download All ----------
+  console.log('Mac, in a browser');
+  {
+    const { ctx } = await context(browser, base, { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, current);
+    await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
+    const p = await open(ctx, base, errors, 'mac-web');
+    const downloads = [];
+    p.on('download', (d) => downloads.push(d.url()));
+    check(!(await p.isVisible('#view-discover .brandbar')), 'the Mac shows the name in the sidebar, not above the title');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(500);
+    const label = (await p.textContent('.sheet [data-act="bulk"]')).trim();
+    check(label === 'Download All (5)', `Get Every App offers Download All for the five Mac apps (${label})`);
+    await p.click('.sheet [data-act="bulk"]');
+    await p.waitForTimeout(7500);
+    check(downloads.length === 5 && downloads.every((u) => u.endsWith('.dmg')), `it downloads every .dmg (${downloads.length})`);
+    check((await p.textContent('#setup-slot .ring b')).trim() === `5/${C.apps.length}`, 'the ring counts them');
+    await ctx.close();
+  }
+
+  // ---------- The native apps, with their native side stood in for ----------
+  function fakeNative(cfg) {
+    window.__calls = [];
+    const now = Object.assign({}, cfg.installed);
+    const answer = async (cmd, args) => {
+      window.__calls.push(cmd === 'plugin:installer|native' ? args.method : cmd);
+      if (cmd === 'installed_apps') {
+        const r = {};
+        for (const a of args.apps) if (now[a.id]) r[a.id] = { version: now[a.id], appStore: false, path: '/Applications/' + a.appName };
+        return r;
+      }
+      if (cmd === 'install_app') { now[args.id] = '9.9.9'; return { version: '9.9.9', appStore: false }; }
+      if (cmd === 'plugin:installer|native') {
+        const x = args.args || {};
+        if (args.method === 'canInstall') return { allowed: true };
+        if (args.method === 'installedVersions') { const apps = {}; for (const k of x.packages) if (now[k]) apps[k] = { version: now[k] }; return { apps }; }
+        if (args.method === 'install') { now[x.packageName] = '9.9.9'; return { status: 'installed' }; }
+        if (args.method === 'showStore') { window.__calls.push('store:' + x.id); return null; }
+      }
+      return null;
+    };
+    window.__TAURI__ = { core: { invoke: answer }, event: { listen: async () => () => {} }, opener: { openUrl: async () => {} } };
+  }
+  async function nativeApp(name, opts, installedNow) {
+    const { ctx } = await context(browser, base, opts, current);
+    await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
+    await ctx.addInitScript(fakeNative, { installed: installedNow });
+    const p = await open(ctx, base, errors, name);
+    await p.waitForTimeout(400);
+    return { ctx, p };
+  }
+  const calls = (p) => p.evaluate(() => window.__calls);
+
+  console.log('Mac app');
+  {
+    const { ctx, p } = await nativeApp('mac-app', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, { meridian: '2.1.4' });
+    check(await p.evaluate(() => window.CowdreyOne.native) === 'mac', 'it knows it is the Mac app');
+    check(await p.evaluate(() => window.CowdreyOne.state('meridian').s) === 'done', 'it sees Meridian in Applications');
+    check((await p.textContent('#all-apps [data-id="meridian"] .pill')).trim() === 'Open', '… and offers Open');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Install All (4)', 'Install All covers the four Mac apps not installed');
+    await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(1500);
+    const c = await calls(p);
+    check(c.filter((x) => x === 'install_app').length === 4, 'it installs each one itself');
+    check(await p.evaluate(() => ['cowdrey-pdf', 'cowdrey-md', 'two-degrees', 'bearings'].every((id) => window.CowdreyOne.state(id).s === 'done')), 'then every app shows as installed');
+    await p.click('.sheet [data-act="close"]'); await p.waitForTimeout(400);
+    await p.click('#all-apps [data-id="meridian"] [data-act="launch"]'); await p.waitForTimeout(200);
+    check((await calls(p)).includes('open_app'), 'Open opens the app');
+    await ctx.close();
+  }
+
+  console.log('Android app');
+  {
+    const { ctx, p } = await nativeApp('android-app', { ...devices['Pixel 7'] }, { 'com.bradcowdrey.twodegrees': '1.0.0' });
+    check(await p.evaluate(() => window.CowdreyOne.state('two-degrees').s) === 'update', 'an older Two Degrees on the phone shows as an update');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Install All (4)', 'Install All covers the four Android apps');
+    await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(1500);
+    const c = await calls(p);
+    check(c.includes('canInstall') && c.filter((x) => x === 'install').length === 4, 'it checks the install permission, then hands each APK to Android');
+    check(await p.evaluate(() => ['cowdrey-md', 'meridian', 'two-degrees', 'bearings'].every((id) => window.CowdreyOne.state(id).s === 'done')), 'then every app shows as installed');
+    await ctx.close();
+  }
+
+  console.log('iPhone app');
+  {
+    const { ctx, p } = await nativeApp('iphone-app', { ...devices['iPhone 15 Pro'] }, {});
+    check((await p.$$('#all-apps use[href="#i-android"]')).length === 0, 'the iPhone app doesn’t show Android');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get All (4)', 'Get All covers the four apps on the App Store');
+    await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(1500);
+    const ids = (await calls(p)).filter((x) => String(x).startsWith('store:')).map((x) => x.slice(6));
+    const want = C.apps.map((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore' ? a.platforms.ios.get[0].url.match(/id(\d+)/)[1] : null).filter(Boolean);
+    check(JSON.stringify(ids) === JSON.stringify(want), `it shows each App Store page in turn, in order (${ids.join(', ')})`);
     await ctx.close();
   }
 

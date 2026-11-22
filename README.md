@@ -28,8 +28,16 @@ the MIT License in their own repositories.
   Mac or another computer, and every Get button goes to the right place: the App Store, TestFlight, the Mac App
   Store, a signed `.dmg`, an APK, or the web app when there isn’t a version for that device. Settings can show the
   downloads for another device instead.
-- **Get Every App:** a ring counts how many are on this device; Get All lists them with one tap each and a tip
-  for the platform (App Store, Android’s install prompt, dragging into Applications).
+- **Get Every App:** a ring counts how many are on this device, and one button gets the rest, as far as each
+  platform allows:
+
+  | | In a browser | In the Cowdrey One app |
+  |---|---|---|
+  | **Mac** | **Download All**: every `.dmg` at once, to drag into Applications | **Install All**: downloads each app, checks it’s signed by Bradley Cowdrey’s Apple team, and puts it in Applications. One click. |
+  | **Android** | **Download All**: every APK at once, to open and install | **Install All**: hands each APK to Android, which asks “Install?” once per app. Updates to apps it installed go ahead without asking (Android 12 and later). |
+  | **iPhone and iPad** | One tap per app: each opens the App Store | **Get All**: each app’s App Store page opens inside Cowdrey One in turn; tap Get, then Done. iOS never lets one app install another. |
+
+  The Mac and Android apps also see which apps are really installed, and their versions, and offer **Open**.
 - **Library:** the apps you got here, with the version and how; the ones not yet on this device; and **updates**
   for downloads (`.dmg` and APK) when a newer release appears on the app’s GitHub repository. The App Store keeps
   its own apps up to date. Edit removes an app from the list.
@@ -57,6 +65,8 @@ One web app in `web/`, with no build step and no dependencies at run time:
 | `web/apps/*.png` | Each app’s icon, cropped from its repository. |
 | `web/fonts/fraunces.woff2`, `web/vendor/qrcode.js` | Fraunces (SIL Open Font License) and qrcode-generator (MIT). |
 | `desktop/` | The **Tauri 2** shell that wraps `web/` as the Mac, iPhone, iPad and Android app, as for Cowdrey.MD and Cowdrey.PDF. |
+| `desktop/src-tauri/src/mac.rs` | The Mac installer: finds installed apps and versions, and installs a `.dmg` with one click. |
+| `desktop/src-tauri/plugins/installer` | The iPhone and Android installer: Android’s package installer (Kotlin) and the App Store page inside the app (Swift). |
 | `design/icon.svg` | The icon’s source: the family’s “C” with a 1, drawn like Cowdrey.MD and Cowdrey.PDF’s, in clay. |
 | `tests/e2e.cjs` | Catalog checks and end-to-end tests as an iPhone, an Android phone and a Mac, in Chromium. |
 
@@ -101,6 +111,9 @@ Secrets, as in the other repositories (Settings → Secrets and variables → Ac
 - **Terms:** add Cowdrey One to `TERMS.md` in cowdrey-md (Sections 6, 15 and 25), and note in Sections 1, 7 and
   19 that Cowdrey One’s code is not under the MIT License. Then sync the copy here.
 - **App Review:** an iPhone app that mostly links to other apps can be turned down under Guideline 4.2 (minimum
-  functionality). The web app, installed from Safari, needs no review.
+  functionality). The web app, installed from Safari, needs no review. The iPhone app leaves Android out of its
+  screens, as App Review asks.
+- **Google Play:** Play doesn’t allow an app to install other apps, so the Android app with Install All is for
+  direct download (an APK), like the other apps’ Android versions. A Play version would link to each app’s Play page.
 - **Version:** one number in `desktop/src-tauri/tauri.conf.json`, `Cargo.toml`, `desktop/package.json` and
   `VERSION` in `web/app.js` (the build stops if they differ), with an entry in [CHANGELOG.md](CHANGELOG.md).

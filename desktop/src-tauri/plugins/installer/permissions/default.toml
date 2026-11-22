@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets Cowdrey One's web app call the installer's native methods (see METHODS in src/lib.rs)."
+permissions = ["allow-native"]

@@ -569,8 +569,11 @@ dependencies = [
 name = "cowdrey-one"
 version = "1.0.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-plugin-installer",
  "tauri-plugin-opener",
 ]
 
@@ -3742,6 +3745,16 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-plugin-installer"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

@@ -51,6 +51,19 @@
   // The Mac app draws under the window's traffic lights, as the Mac App Store does.
   if (isTauri && detected.p === 'mac') document.documentElement.classList.add('mac-app');
 
+  // In the Mac, iPhone and Android apps, Cowdrey One does what a browser can't (desktop/src-tauri):
+  // on the Mac it installs apps itself; on Android it hands APKs to Android's installer; on iPhone it shows App Store
+  // pages inside the app. Both the Mac and Android apps also see which apps are really installed.
+  const NATIVE = isTauri ? detected.p : null;
+  const tauri = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
+  const nativeCall = (method, args) => tauri('plugin:installer|native', { method, args: args || {} });
+  // App Review turns down iPhone apps that point to other phone platforms, so the iPhone app leaves Android out.
+  const SHOWN = NATIVE === 'ios' ? ORDER.filter((p) => p !== 'android') : ORDER;
+  // The ways to get an app that this device's app can carry out itself.
+  const canNative = (o) => !!o && !!NATIVE && o.p === NATIVE &&
+    ((NATIVE === 'mac' && o.kind === 'dmg') || (NATIVE === 'android' && o.kind === 'apk') || (NATIVE === 'ios' && o.kind === 'appstore'));
+  const storeId = (url) => (String(url).match(/\/id(\d+)/) || [])[1];
+
   /* ---------- Ways to get an app ---------- */
   const KIND = {
     appstore: { how: 'App Store', btn: 'Get', toast: (n) => `Opening ${n} on the App Store.` },
@@ -62,7 +75,8 @@
   };
   const options = (a, p) => (a.platforms[p] && a.platforms[p].get) || [];
   function best(a, p = plat()) {
-    const o = options(a, p)[0];
+    const list = options(a, p);
+    const o = (p === NATIVE && list.find((x) => canNative(Object.assign({ p }, x)))) || list[0];
     if (o) return Object.assign({ p }, o);
     const w = options(a, 'web')[0];
     return w ? Object.assign({ p: 'web', fallback: true }, w) : null;
@@ -79,7 +93,10 @@
   const key = (p, id) => p + ':' + id;
   const mine = (a) => installed[key(plat(), a.id)];
 
+  const busy = {};   // app id → what its install is doing: downloading, verifying, installing, waiting
+  const STAGE = { downloading: 'Downloading', verifying: 'Checking', installing: 'Installing', waiting: 'App Store' };
   function state(a) {
+    if (busy[a.id]) return { s: 'busy', stage: busy[a.id], o: best(a) };
     const o = best(a);
     if (!o) return { s: 'none' };
     const inst = mine(a);
@@ -99,6 +116,10 @@
     const st = state(a);
     if (st.s === 'none') return '';
     const n = esc(a.name);
+    if (st.s === 'busy') return `<span class="pill busy ${variant}" data-pill="${a.id}" role="status" aria-label="${n}: ${STAGE[st.stage] || 'Working'}"></span>`;
+    if (st.s === 'done' && st.inst && st.inst.real) {
+      return `<button class="pill ${variant}" data-pill="${a.id}" data-act="launch" data-id="${a.id}" aria-label="Open ${n}">Open</button>`;
+    }
     if (st.s === 'done') {
       return `<button class="pill done ${variant}" data-pill="${a.id}" data-act="open-app" data-id="${a.id}" aria-label="${n} is on ${esc(thisDevice())}. Details">${icon('check-circle')}</button>`;
     }
@@ -108,7 +129,7 @@
   }
   const pillWrap = (a, variant = '') => {
     const st = state(a);
-    const note = st.o && st.o.fallback ? 'Web app' : st.s === 'update' ? 'v' + esc(latest(a)) : '';
+    const note = st.s === 'busy' ? (STAGE[st.stage] || '') : st.o && st.o.fallback ? 'Web app' : st.s === 'update' ? 'v' + esc(latest(a)) : '';
     return `<span class="pill-wrap">${pill(a, variant)}${note ? `<small>${note}</small>` : ''}</span>`;
   };
   // Downloads load in place (the page stays); stores and web apps open beside this one.
@@ -128,6 +149,7 @@
   function get(a, el, o, e) {
     o = o || best(a);
     if (!o) return;
+    if (canNative(o)) { if (e) e.preventDefault(); nativeGet(a, o); return; }
     const byLink = e && el && el.tagName === 'A' && !isTauri;   // the link itself opens the store, download or web app
     if (!byLink) { if (e) e.preventDefault(); openUrl(o.url, o.kind); }
     const p = o.fallback ? plat() : o.p;
@@ -145,6 +167,113 @@
     }
     toast(msg, o.kind === 'web' ? null : { label: 'Undo', run: () => { if (before) installed[k] = before; else delete installed[k]; store.set('installed', installed); refresh(); } });
   }
+  // Installs (Mac, Android) or shows the App Store page (iPhone) for one app, in the native apps. True when done.
+  async function nativeGet(a, o, quiet) {
+    if (busy[a.id]) return false;
+    if (NATIVE === 'android' && !(await androidReady())) return false;
+    try {
+      if (NATIVE === 'ios') {
+        busy[a.id] = 'waiting'; refresh();
+        await nativeCall('showStore', { id: storeId(o.url) });
+        installed[key('ios', a.id)] = { v: latest(a), k: 'appstore', t: Date.now() };
+        store.set('installed', installed);
+        return true;
+      }
+      busy[a.id] = NATIVE === 'mac' ? 'downloading' : 'installing'; refresh();
+      if (NATIVE === 'mac') {
+        await tauri('install_app', { id: a.id, url: o.url, bundleId: a.bundle, appName: a.macApp });
+        if (!quiet) toast(`${a.name} is in Applications.`);
+      } else {
+        const r = await nativeCall('install', { url: o.url, name: a.name, packageName: a.bundle || null });
+        if (r && r.status === 'cancelled') { if (!quiet) toast(`${a.name} wasn’t installed.`); return false; }
+        if (!quiet) toast(`${a.name} is installed.`);
+      }
+      return true;
+    } catch (err) {
+      toast(String((err && err.message) || err || `Couldn’t get ${a.name}.`));
+      return false;
+    } finally {
+      delete busy[a.id];
+      await syncInstalled();
+      refresh();
+    }
+  }
+  // Android asks once before an app may install others: Settings, Install unknown apps, Cowdrey One.
+  async function androidReady() {
+    try { const r = await nativeCall('canInstall'); if (!r || r.allowed) return true; } catch (e) { return true; }
+    openSheet(allowPage(), { kind: 'allow', short: true });
+    return false;
+  }
+  // What's really installed, in the Mac and Android apps. Elsewhere Cowdrey One goes by what was got here.
+  async function syncInstalled() {
+    if (NATIVE !== 'mac' && NATIVE !== 'android') return;
+    const found = {};
+    try {
+      if (NATIVE === 'mac') {
+        const list = APPS.filter((a) => a.bundle && a.macApp && a.platforms.mac);
+        const r = await tauri('installed_apps', { apps: list.map((a) => ({ id: a.id, bundleId: a.bundle, appName: a.macApp })) }) || {};
+        for (const a of list) if (r[a.id]) found[a.id] = { v: r[a.id].version, k: r[a.id].appStore ? 'macappstore' : 'dmg' };
+      } else {
+        const list = APPS.filter((a) => a.bundle && a.platforms.android);
+        const r = await nativeCall('installedVersions', { packages: list.map((a) => a.bundle) });
+        const apps = (r && r.apps) || {};
+        for (const a of list) if (apps[a.bundle]) found[a.id] = { v: apps[a.bundle].version, k: 'apk' };
+      }
+    } catch (e) { return; }
+    for (const a of APPS) {
+      if (!a.bundle) continue;
+      const k = key(NATIVE, a.id), f = found[a.id];
+      if (f) installed[k] = { v: verOf(f.v) || latest(a), k: f.k, t: (installed[k] && installed[k].t) || Date.now(), real: true };
+      else if (installed[k] && installed[k].k !== 'web') delete installed[k];
+    }
+    store.set('installed', installed);
+    refresh();
+  }
+  // What one tap gets on this device. In the apps: every app they can install themselves. In a browser on a Mac or
+  // Android phone: every download at once. On an iPhone in a browser, the App Store takes one app at a time.
+  function bulkPlan() {
+    const p = plat();
+    if (NATIVE && p === NATIVE) {
+      return { kind: 'native', label: NATIVE === 'ios' ? 'Get All' : 'Install All',
+        list: APPS.filter((a) => { const s = state(a); return (s.s === 'get' || s.s === 'update') && canNative(s.o); }) };
+    }
+    if (!NATIVE && (p === 'mac' || p === 'android')) {
+      const kind = p === 'mac' ? 'dmg' : 'apk';
+      return { kind: 'download', label: 'Download All', fileKind: kind,
+        list: APPS.filter((a) => !mine(a) && options(a, p).some((o) => o.kind === kind)) };
+    }
+    return { kind: 'none', list: [] };
+  }
+  let bulkRunning = '';
+  async function runNative(list, verb) {
+    if (bulkRunning || !list.length) return;
+    if (NATIVE === 'android' && !(await androidReady())) return;
+    let done = 0;
+    const failed = [];
+    for (let i = 0; i < list.length; i++) {
+      bulkRunning = `${verb} ${i + 1} of ${list.length}…`; refresh();
+      if (await nativeGet(list[i], best(list[i]), true)) done++; else failed.push(list[i].name);
+    }
+    bulkRunning = ''; refresh();
+    if (NATIVE === 'ios') toast(failed.length ? `Not opened: ${failed.join(', ')}.` : 'That’s every app on the App Store.');
+    else toast(failed.length ? `${done} installed. Not installed: ${failed.join(', ')}.` : `${done} ${done === 1 ? 'app' : 'apps'} installed.`);
+  }
+  function downloadAll(plan) {
+    const p = plat();
+    plan.list.forEach((a, i) => {
+      const o = options(a, p).find((x) => x.kind === plan.fileKind);
+      setTimeout(() => openUrl(o.url, o.kind), i * 1500);   // one at a time, so each download starts before the next
+      installed[key(p, a.id)] = { v: latest(a), k: o.kind, t: Date.now() };
+    });
+    store.set('installed', installed); refresh();
+    toast(`Downloading ${plan.list.length} ${plan.list.length === 1 ? 'app' : 'apps'}. Your browser may ask to allow several downloads.`);
+  }
+  function runBulk() {
+    const plan = bulkPlan();
+    if (plan.kind === 'download') downloadAll(plan);
+    else if (plan.kind === 'native') runNative(plan.list, NATIVE === 'ios' ? 'Opening' : 'Installing');
+  }
+
   function forget(a, p = plat()) {
     const k = key(p, a.id); const before = installed[k];
     delete installed[k]; store.set('installed', installed); refresh();
@@ -229,8 +358,9 @@
   }
 
   /* ---------- Discover ---------- */
+  const brand = () => `<div class="brandbar"><img src="icon-192.png" alt=""><span>Cowdrey One</span></div>`;
   const dateLine = () => new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const platIcons = (a) => `<span class="plats" aria-label="On ${ORDER.filter((p) => a.platforms[p]).map((p) => PLAT[p].name).join(', ')}">${ORDER.filter((p) => a.platforms[p]).map((p) => icon(PLAT[p].icon, p === plat() ? 'here' : '')).join('')}</span>`;
+  const platIcons = (a) => `<span class="plats" aria-label="On ${SHOWN.filter((p) => a.platforms[p]).map((p) => PLAT[p].name).join(', ')}">${SHOWN.filter((p) => a.platforms[p]).map((p) => icon(PLAT[p].icon, p === plat() ? 'here' : '')).join('')}</span>`;
   const tag = (a) => (a.status ? `<span class="status-tag">${esc(a.status)}</span>` : '');
 
   function appRow(a, opts = {}) {
@@ -269,7 +399,7 @@
   function renderDiscover() {
     const half = Math.ceil(APPS.length / 2);
     $('#view-discover').innerHTML = `
-      <header class="large-head"><div><p class="eyebrow">${esc(dateLine())}</p><h1 class="large-title" id="t-discover">Discover</h1></div></header>
+      ${brand()}<header class="large-head"><div><p class="eyebrow">${esc(dateLine())}</p><h1 class="large-title" id="t-discover">Discover</h1></div></header>
       <div class="carousel" tabindex="0" role="region" aria-roledescription="carousel" aria-label="Featured apps">${APPS.map(featureCard).join('')}</div>
       <div class="dots" role="tablist" aria-label="Featured apps">${APPS.map((a, i) => `<button role="tab" aria-label="${esc(a.name)}" aria-current="${i === 0}" data-act="slide" data-i="${i}"></button>`).join('')}</div>
       <section class="setup" id="setup-slot">${setupCard()}</section>
@@ -309,9 +439,9 @@
       const i = mine(a), k = KIND[i.k];
       return i.k === 'web' ? `Opened ${fmtDay(i.t)} · web app` : `Version ${esc(i.v)} · ${esc(k.how)} · ${fmtDay(i.t)}`;
     };
-    const platSelect = `<select data-act="platform" aria-label="Show downloads for">${[['auto', `Automatic (${detected.device})`]].concat(ORDER.map((p) => [p, PLAT[p].name])).map(([v, t]) => `<option value="${v}"${prefs.platform === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+    const platSelect = `<select data-act="platform" aria-label="Show downloads for">${[['auto', `Automatic (${detected.device})`]].concat(SHOWN.map((p) => [p, PLAT[p].name])).map(([v, t]) => `<option value="${v}"${prefs.platform === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
     $('#view-library').innerHTML = `
-      <header class="large-head"><div><p class="eyebrow">On ${esc(thisDevice())}</p><h1 class="large-title" id="t-library">Library</h1></div>
+      ${brand()}<header class="large-head"><div><p class="eyebrow">On ${esc(thisDevice())}</p><h1 class="large-title" id="t-library">Library</h1></div>
         ${got.length ? `<button class="head-button" data-act="edit">${editing ? 'Done' : 'Edit'}</button>` : ''}</header>
       <div class="reading"><span class="big">${got.length}</span><span class="of">of ${APPS.length} apps</span></div>
       <p class="reading-sub">${ups.length ? `${ups.length} ${ups.length === 1 ? 'update' : 'updates'} available` : got.length ? 'Up to date' : 'Nothing here yet'} · ${checkedLine()}</p>
@@ -358,9 +488,9 @@
         extra: C.hubDownloads.mac ? `<a class="link-button" href="${esc(C.hubDownloads.mac)}">Or download the Mac app</a>` : '' },
       web: { t: 'Windows and other computers', s: ['In Chrome or Edge, click Install in the address bar.', 'Cowdrey One opens in its own window.'] },
     };
-    const order = [detected.p].concat(ORDER.filter((p) => p !== detected.p));
+    const order = [detected.p].concat(SHOWN.filter((p) => p !== detected.p));
     $('#view-share').innerHTML = `
-      <header class="large-head"><div><p class="eyebrow">Cowdrey One</p><h1 class="large-title" id="t-share">${desk ? 'Get on Your Phone' : 'Share'}</h1></div></header>
+      ${brand()}<header class="large-head"><div><p class="eyebrow">Bradley Cowdrey’s apps</p><h1 class="large-title" id="t-share">${desk ? 'Get on Your Phone' : 'Share'}</h1></div></header>
       <section class="qr-card"><div class="qr">${qrSvg(url)}<img src="icon-192.png" alt=""></div>
         <div><h3>${desk ? 'Point your phone’s camera here' : 'Share every app'}</h3>
           <p>${desk ? 'Scan this with your iPhone or Android phone to open Cowdrey One there. Then each app is one tap away, with the right download for that phone.' : 'Show this code to a friend, or send the link. It opens every app with the right download for their phone or computer.'}</p>
@@ -395,7 +525,7 @@
   }
   function getRows(a) {
     const rows = [];
-    for (const p of ORDER) {
+    for (const p of SHOWN) {
       const pl = a.platforms[p];
       if (!pl) {
         if (a.soon && a.soon[p]) rows.push(`<div class="row get-row"><span class="glyph">${icon(PLAT[p].icon)}</span><span class="main"><span class="title">${PLAT[p].name}</span><span class="sub">${esc(a.soon[p])}</span></span></div>`);
@@ -426,7 +556,7 @@
     return `${head}<p class="notes">${log ? `See every change <a href="${esc(log)}" target="_blank" rel="noopener" data-act="ext">on GitHub</a>.` : ''}</p>`;
   }
   function appPage(a) {
-    const plats = ORDER.filter((p) => a.platforms[p]);
+    const plats = SHOWN.filter((p) => a.platforms[p]);
     const inLib = mine(a);
     return `<div class="hero" style="${sky(a)}"><div class="art">${art(a)}</div>
         <div class="hero-id">${appIcon(a)}<div><h2 id="sheet-title">${esc(a.name)}</h2><p>${esc(a.subtitle)}</p>
@@ -435,7 +565,7 @@
         <div class="facts">
           <div class="fact"><div class="k">Version</div><div class="v">${esc(latest(a))}</div><div class="c">${a.status ? esc(a.status) : 'Latest'}</div></div>
           <div class="fact"><div class="k">Price</div><div class="v">Free</div><div class="c">Forever</div></div>
-          <div class="fact"><div class="k">Platforms</div><div class="v">${plats.length}</div><div class="c">${plats.map((p) => ({ ios: 'iOS', android: 'Android', mac: 'Mac', web: 'Web' })[p]).join(' · ')}</div></div>
+          <div class="fact"><div class="k">Platforms</div><div class="v">${plats.length}</div><div class="c">${plats.filter((p) => SHOWN.includes(p)).map((p) => ({ ios: 'iOS', android: 'Android', mac: 'Mac', web: 'Web' })[p]).join(' · ')}</div></div>
           <div class="fact"><div class="k">Category</div><div class="v">${icon({ Weather: 'cloud', Navigation: 'compass', Productivity: 'clock', Writing: 'doc', Documents: 'doc' }[a.category] || 'stack')}</div><div class="c">${esc(a.category)}</div></div>
           <div class="fact"><div class="k">Privacy</div><div class="v">${icon('lock')}</div><div class="c">No tracking</div></div>
           <div class="fact"><div class="k">Developer</div><div class="v">${icon('person')}</div><div class="c">Bradley Cowdrey</div></div>
@@ -474,19 +604,36 @@
 
   /* ---------- Get every app ---------- */
   function setupPage() {
-    const p = plat(), n = gotCount();
+    const p = plat(), n = gotCount(), plan = bulkPlan();
+    const bulkTip = plan.kind === 'native' ? {
+      mac: 'Cowdrey One downloads each app, checks it’s signed by Bradley Cowdrey, and puts it in Applications.',
+      android: 'Android asks “Install?” once for each app. On Android 12 and later, apps installed here update without asking.',
+      ios: 'Each app’s App Store page opens here in turn: tap Get, then Done for the next.',
+    }[NATIVE] : p === 'mac'
+      ? 'Your browser may ask to allow several downloads. Then open each .dmg in Downloads and drag the app into Applications.'
+      : 'Your browser may ask to allow several downloads. Then open each APK from Downloads and tap Install.';
+    const bulk = plan.list.length || bulkRunning ? `<p style="margin:16px 0 0"><button class="button wide" data-act="bulk"${bulkRunning ? ' disabled' : ''}>${icon('down')}${bulkRunning ? esc(bulkRunning) : `${plan.label} (${plan.list.length})`}</button></p>
+        <p class="group-foot">${esc(bulkTip)}</p>` : '';
     const tip = {
-      ios: 'Each one opens the App Store: tap Get there, then come back here for the next.',
-      android: 'Each one downloads an APK. The first time, Android asks you to allow your browser to install apps: allow it, then tap Install for each.',
-      mac: 'Each one downloads a .dmg to Downloads. Open it and drag the app into Applications.',
+      ios: NATIVE === 'ios' ? 'Tap Get All, or Get on any app.' : 'Each one opens the App Store: tap Get there, then come back here for the next.',
+      android: NATIVE === 'android' ? 'Tap Install All, or Get on any app.' : 'Each one downloads an APK. The first time, Android asks you to allow your browser to install apps: allow it, then tap Install for each.',
+      mac: NATIVE === 'mac' ? 'Tap Install All, or Get on any app.' : 'Each one downloads a .dmg to Downloads. Open it and drag the app into Applications.',
       web: 'Each one opens in a new tab. On a phone, add each to your Home Screen.',
     }[p];
     return `<h2 class="sheet-title" id="sheet-title">Get Every App</h2><p class="sheet-lead">For ${esc(thisDevice())}. ${esc(tip)}</p>
       <div class="sheet-pad">
         <div class="reading" style="margin-top:18px"><span class="big" style="font-size:48px">${n}</span><span class="of" style="font-size:20px">of ${APPS.length} done</span></div>
-        <div class="group" id="setup-rows">${APPS.map((a) => appRow(a, { plats: false })).join('')}</div>
+        ${bulk}
+        <div class="group" id="setup-rows" style="margin-top:18px">${APPS.map((a) => appRow(a, { plats: false })).join('')}</div>
         <p class="group-foot">Not on ${esc(PLAT[p].name)}? Apps without a ${esc(PLAT[p].name)} version open on the web instead.</p>
         <p style="margin-top:22px"><button class="button wide" data-act="close">Done</button></p></div>`;
+  }
+
+  function allowPage() {
+    return `<div class="welcome" style="padding-top:44px"><img src="icon-192.png" alt=""><h2 id="sheet-title">Allow Cowdrey One to install apps</h2>
+        <p style="color:var(--ink-2);margin:-8px 0 20px">Android asks this once. Tap Open Settings, turn on <b>Allow from this source</b>, then come back and tap Install again.</p>
+        <button class="button wide" data-act="allow-settings">Open Settings</button>
+        <p style="margin:14px 0 18px"><button class="link-button" data-act="close">Not Now</button></p></div>`;
   }
 
   /* ---------- About and first launch ---------- */
@@ -716,7 +863,13 @@
       case 'close': closeSheet(); break;
       case 'agree': store.set('terms', { v: C.termsVersion, at: Date.now() }); sheet && (sheet.dataset.locked = ''); closeSheet(); break;
       case 'edit': editing = !editing; renderLibrary(); break;
-      case 'update-all': updates().forEach((x) => get(x, null, best(x))); break;
+      case 'update-all': if (NATIVE && plat() === NATIVE) runNative(updates(), 'Updating'); else updates().forEach((x) => get(x, null, best(x))); break;
+      case 'bulk': runBulk(); break;
+      case 'launch':
+        if (NATIVE === 'mac') tauri('open_app', { bundleId: a.bundle }).catch((x) => toast(String(x)));
+        else if (NATIVE === 'android') nativeCall('openApp', { packageName: a.bundle }).catch((x) => toast(String(x)));
+        break;
+      case 'allow-settings': nativeCall('openInstallSettings').catch(() => {}); closeSheet(); break;
       case 'check': checkUpdates(false); break;
       case 'appearance': prefs.appearance = t.dataset.v; savePrefs(); applyTheme(); renderLibrary(); break;
       case 'share-hub': share('Cowdrey One', 'Every free app by Bradley Cowdrey, for iPhone, Android, Mac and the web.', C.hubUrl); break;
@@ -749,7 +902,14 @@
   const startTab = (location.hash || '').slice(1);
   showTab(titles[startTab] ? startTab : 'discover');
   setInterval(tickClocks, 15000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) tickClocks(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickClocks(); syncInstalled(); } });
+  syncInstalled();
+  if (NATIVE === 'mac' && window.__TAURI__.event) {
+    window.__TAURI__.event.listen('install-progress', (ev) => {
+      const p = ev.payload || {};
+      if (busy[p.id] && p.stage !== 'done') { busy[p.id] = p.stage; refresh(); }
+    });
+  }
 
   const params = new URLSearchParams(location.search);
   const terms = store.get('terms', null);
@@ -763,5 +923,5 @@
   }
 
   // For the tests and for anyone curious in the console.
-  window.CowdreyOne = { VERSION, state: (id) => state(byId[id]), platform: plat, checkUpdates };
+  window.CowdreyOne = { VERSION, state: (id) => state(byId[id]), platform: plat, native: NATIVE, checkUpdates };
 })();
