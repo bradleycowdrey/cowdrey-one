@@ -118,8 +118,11 @@ def review_contact():
 def newest_build():
     for _ in range(45):
         bs = call('GET', f'/v1/builds?filter[app]={APP}&filter[preReleaseVersion.version]={VERSION}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=10')['data']
+        # The newest upload, once Apple has processed it; an older build only if the newest one failed processing.
+        if bs and bs[0]['attributes'].get('processingState') == 'VALID' and not bs[0]['attributes'].get('expired'):
+            return bs[0]
         ok = [b for b in bs if b['attributes'].get('processingState') == 'VALID' and not b['attributes'].get('expired')]
-        if ok:
+        if ok and bs[0]['attributes'].get('processingState') != 'PROCESSING':
             return ok[0]
         # Right after an upload Apple may not list the build at all for a few minutes, then lists it as PROCESSING.
         if bs and not any(b['attributes'].get('processingState') == 'PROCESSING' for b in bs):
