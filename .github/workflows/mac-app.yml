@@ -9,6 +9,7 @@ on:
       - desktop/src-tauri/tauri.conf.json
       - desktop/src-tauri/Cargo.toml
       - desktop/src-tauri/src/**
+      - desktop/src-tauri/icons/**
       - .github/workflows/mac-app.yml
   workflow_dispatch:
 

@@ -67,7 +67,7 @@ One web app in `web/`, with no build step and no dependencies at run time:
 | `desktop/` | The **Tauri 2** shell that wraps `web/` as the Mac, iPhone, iPad and Android app, as for Cowdrey.MD and Cowdrey.PDF. |
 | `desktop/src-tauri/src/mac.rs` | The Mac installer: finds installed apps and versions, and installs a `.dmg` with one click. |
 | `desktop/src-tauri/plugins/installer` | The iPhone and Android installer: Android’s package installer (Kotlin) and the App Store page inside the app (Swift). |
-| `design/icon.svg` | The icon’s source: the family’s “C” with a 1, drawn like Cowdrey.MD and Cowdrey.PDF’s, in clay. |
+| `design/icon.svg` | The icon’s source: the family’s “C” with ONE, set exactly as Cowdrey.MD and Cowdrey.PDF set MD and PDF, in clay. |
 | `tests/e2e.cjs` | Catalog checks and end-to-end tests as an iPhone, an Android phone and a Mac, in Chromium. |
 
 ### Add an app

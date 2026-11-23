@@ -101,14 +101,16 @@ def review_contact():
         if d and d['attributes'].get('contactPhone'):
             phone = d['attributes']['contactPhone']
             break
+    d = call('GET', f'/v1/apps/{APP}/betaAppReviewDetail')['data']
+    # Before the app has an App Store version, the number entered in TestFlight → Test Information is the one to keep.
+    phone = phone or d['attributes'].get('contactPhone')
     r = L['review']
     attrs = {'contactFirstName': r['contactFirstName'], 'contactLastName': r['contactLastName'], 'contactEmail': r['contactEmail'],
              'demoAccountRequired': False, 'notes': r['notes'][:4000]}
     if phone:
         attrs['contactPhone'] = phone
-    d = call('GET', f'/v1/apps/{APP}/betaAppReviewDetail')['data']
     call('PATCH', f"/v1/betaAppReviewDetails/{d['id']}", {'data': {'type': 'betaAppReviewDetails', 'id': d['id'], 'attributes': attrs}})
-    return 'contact copied from the App Store review contact' + ('' if phone else ' (no phone number found: add one in TestFlight → Test Information)')
+    return 'contact and review notes set' + ('' if phone else ' (no phone number found: add one in TestFlight → Test Information)')
 
 
 def newest_build():

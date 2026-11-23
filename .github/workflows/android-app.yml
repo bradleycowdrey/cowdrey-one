@@ -10,6 +10,7 @@ on:
       - desktop/src-tauri/src/**
       - desktop/src-tauri/capabilities/**
       - desktop/src-tauri/plugins/**
+      - desktop/src-tauri/icons/**
       - .github/workflows/android-app.yml
   workflow_dispatch:
 
