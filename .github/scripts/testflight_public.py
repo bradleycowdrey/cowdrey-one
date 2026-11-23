@@ -117,9 +117,10 @@ def newest_build():
         ok = [b for b in bs if b['attributes'].get('processingState') == 'VALID' and not b['attributes'].get('expired')]
         if ok:
             return ok[0]
-        if not any(b['attributes'].get('processingState') == 'PROCESSING' for b in bs):
+        # Right after an upload Apple may not list the build at all for a few minutes, then lists it as PROCESSING.
+        if bs and not any(b['attributes'].get('processingState') == 'PROCESSING' for b in bs):
             raise ApiError(f'no processed build of {VERSION}')
-        print('Waiting for Apple to process the build…', flush=True)
+        print('Waiting for Apple to ' + ('process' if bs else 'list') + ' the build…', flush=True)
         time.sleep(60)
     raise ApiError('the build is still processing; run this again later')
 
