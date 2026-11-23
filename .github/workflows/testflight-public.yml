@@ -1,0 +1,43 @@
+name: TestFlight public link
+
+# Keeps a public TestFlight link so anyone can install the iPhone and iPad app before it is on the App Store.
+# After each iPhone build, the new build joins the "Public" tester group and goes to beta App Review if needed.
+# TestFlight only: App Store versions are only read (for the App Review phone number), never created or changed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/testflight_public.py
+      - .github/workflows/testflight-public.yml
+  workflow_run:
+    workflows: ['iPhone app']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-link:
+    name: Add the newest build to the public TestFlight group
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 60
+    env:
+      APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      P8: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+      HAS_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No App Store Connect key yet
+        if: env.HAS_KEY == 'false'
+        run: echo "Add the App Store Connect key secrets to this repository to keep a public TestFlight link."
+
+      - name: Update TestFlight
+        if: env.HAS_KEY == 'true'
+        run: |
+          pip install --quiet pyjwt cryptography
+          python3 .github/scripts/testflight_public.py

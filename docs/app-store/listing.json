@@ -1,0 +1,19 @@
+{
+  "bundleId": "com.bradcowdrey.cowdreyone",
+  "name": "Cowdrey One",
+  "sku": "cowdrey-one",
+  "locale": "en-US",
+  "subtitle": "Every app, one place",
+  "privacyPolicyUrl": "https://bradcowdrey.com/legal",
+  "supportUrl": "https://bradcowdrey.com",
+  "marketingUrl": "https://bradcowdrey.com",
+  "primaryCategory": "UTILITIES",
+  "copyright": "2026 Bradley Cowdrey",
+  "review": {
+    "contactFirstName": "Bradley",
+    "contactLastName": "Cowdrey",
+    "contactEmail": "legal@bradcowdrey.com",
+    "demoAccountRequired": false,
+    "notes": "No sign-in is needed. The app has no accounts, no in-app purchases, no advertising and no analytics.\n\nCowdrey One lists Bradley Cowdrey's own free apps (Cowdrey.PDF, Cowdrey.MD, Meridian, Two Degrees, Bearings and Golden Hour) and helps people get them. Tapping Get on an app opens that app's App Store page inside Cowdrey One (SKStoreProductViewController); Get All opens each one in turn. Apps that are only on the web open in Safari.\n\nHow to try it:\n1. Launch the app and tap Continue on the welcome screen.\n2. On Discover, tap any app to see its page, or tap Get to open its App Store page.\n3. Tap Get All on the set-up card to step through every app on the App Store.\n4. Library lists the apps you got here; Share shows a QR code for the app.\n\nNetwork use: the app reads GitHub's public releases API (api.github.com) to show each app's latest version and release notes. Nothing about the person is sent anywhere; the list of apps they got is kept on the device. The interface is in English and works the same in all regions."
+  }
+}
