@@ -102,6 +102,8 @@ def review_contact():
             phone = d['attributes']['contactPhone']
             break
     d = call('GET', f'/v1/apps/{APP}/betaAppReviewDetail')['data']
+    on_file = [k for k in ('contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone') if d['attributes'].get(k)]
+    print('     on file in TestFlight → Test Information: ' + (', '.join(on_file) or 'nothing'), flush=True)
     # Before the app has an App Store version, the number entered in TestFlight → Test Information is the one to keep.
     phone = phone or d['attributes'].get('contactPhone')
     r = L['review']
