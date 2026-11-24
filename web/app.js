@@ -902,7 +902,22 @@
   const startTab = (location.hash || '').slice(1);
   showTab(titles[startTab] ? startTab : 'discover');
   setInterval(tickClocks, 15000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickClocks(); syncInstalled(); } });
+  // Opening Cowdrey One, or switching back to it, starts at the top of the screen (and of an open page), as a fresh
+  // look at the apps. Phones resume an app where it was left, so this runs on every return, in the app and when it's
+  // installed to the Home Screen; in a browser tab the page stays where it was. Never in the middle of an install.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  function toTop() {
+    if (bulkRunning || Object.keys(busy).length) return;
+    window.scrollTo(0, 0);
+    const sc = sheet && $('.sheet-scroll', sheet);
+    if (sc) sc.scrollTop = 0;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    tickClocks(); syncInstalled();
+    if (standalone) toTop();
+  });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) toTop(); });
   syncInstalled();
   if (NATIVE === 'mac' && window.__TAURI__.event) {
     window.__TAURI__.event.listen('install-progress', (ev) => {

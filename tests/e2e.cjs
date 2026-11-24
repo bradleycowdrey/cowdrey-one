@@ -262,6 +262,22 @@ async function open(ctx, url, errors, name) {
     const ids = (await calls(p)).filter((x) => String(x).startsWith('store:')).map((x) => x.slice(6));
     const want = C.apps.map((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore' ? a.platforms.ios.get[0].url.match(/id(\d+)/)[1] : null).filter(Boolean);
     check(JSON.stringify(ids) === JSON.stringify(want), `it shows each App Store page in turn, in order (${ids.join(', ')})`);
+    // Leaving the app and coming back (opening it from the Home Screen, or switching to it) starts at the top.
+    const comeBack = () => p.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await p.evaluate(() => { document.querySelector('.sheet .sheet-scroll').scrollTop = 400; });
+    check(await p.evaluate(() => document.querySelector('.sheet .sheet-scroll').scrollTop) > 0, '(the open page is scrolled down)');
+    await comeBack(); await p.waitForTimeout(100);
+    check(await p.evaluate(() => document.querySelector('.sheet .sheet-scroll').scrollTop) === 0, 'coming back to the app scrolls an open page to the top');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.evaluate(() => window.scrollTo(0, 900));
+    check(await p.evaluate(() => window.scrollY) > 0, '(the list is scrolled down)');
+    await comeBack(); await p.waitForTimeout(100);
+    check(await p.evaluate(() => window.scrollY) === 0, 'opening or switching back to the app starts at the top of the screen');
     await ctx.close();
   }
 

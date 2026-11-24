@@ -13,4 +13,5 @@ The first version: every app by Bradley Cowdrey in one place.
 - **The Mac and Android apps see what’s installed,** with versions and an Open button.
 - **Library,** with updates for downloaded apps from each app’s GitHub releases.
 - **Get on Your Phone:** a QR code, Share and Copy Link, and how to keep Cowdrey One on each device.
+- **Starts at the top:** opening Cowdrey One, or switching back to it, shows the top of the screen.
 - Light and dark, a floating tab bar on phones with Cowdrey One at the top, and a sidebar on the Mac.
