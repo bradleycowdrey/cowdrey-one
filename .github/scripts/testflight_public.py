@@ -105,7 +105,7 @@ def review_contact():
     on_file = [k for k in ('contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone') if d['attributes'].get(k)]
     print('     on file in TestFlight → Test Information: ' + (', '.join(on_file) or 'nothing'), flush=True)
     # Before the app has an App Store version, the number entered in TestFlight → Test Information is the one to keep.
-    phone = phone or d['attributes'].get('contactPhone')
+    phone = os.environ.get('CONTACT_PHONE', '').strip() or phone or d['attributes'].get('contactPhone')
     r = L['review']
     attrs = {'contactFirstName': r['contactFirstName'], 'contactLastName': r['contactLastName'], 'contactEmail': r['contactEmail'],
              'demoAccountRequired': False, 'notes': r['notes'][:4000]}

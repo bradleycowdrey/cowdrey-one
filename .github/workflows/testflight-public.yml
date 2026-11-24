@@ -14,6 +14,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      contact_phone:
+        description: 'Beta App Review contact phone, set once in App Store Connect (kept out of the repo and the log)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -29,6 +34,7 @@ jobs:
       APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       P8: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
       HAS_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
+      CONTACT_PHONE: ${{ inputs.contact_phone }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,5 +45,6 @@ jobs:
       - name: Update TestFlight
         if: env.HAS_KEY == 'true'
         run: |
+          if [[ -n "$CONTACT_PHONE" ]]; then echo "::add-mask::$CONTACT_PHONE"; fi
           pip install --quiet pyjwt cryptography
           python3 .github/scripts/testflight_public.py
