@@ -122,7 +122,8 @@ def newest_build():
     for _ in range(45):
         bs = call('GET', f'/v1/builds?filter[app]={APP}&filter[preReleaseVersion.version]={VERSION}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=10')['data']
         if want:
-            b = next((x for x in bs if x['attributes'].get('version') == want), None)
+            # Apple lists the build as "1.0.0.11": the app version, then the build number.
+            b = next((x for x in bs if str(x['attributes'].get('version', '')).split('.')[-1] == want), None)
             state = b and b['attributes'].get('processingState')
             if state == 'VALID' and not b['attributes'].get('expired'):
                 return b
