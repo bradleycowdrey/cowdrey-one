@@ -116,8 +116,21 @@ def review_contact():
 
 
 def newest_build():
+    # BUILD is the build number just uploaded (the iPhone app run's number). Apple can take several minutes to list
+    # a new upload at all, and until then the previous build looks like the newest, so wait for this one by number.
+    want = os.environ.get('BUILD', '').strip()
     for _ in range(45):
         bs = call('GET', f'/v1/builds?filter[app]={APP}&filter[preReleaseVersion.version]={VERSION}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=10')['data']
+        if want:
+            b = next((x for x in bs if x['attributes'].get('version') == want), None)
+            state = b and b['attributes'].get('processingState')
+            if state == 'VALID' and not b['attributes'].get('expired'):
+                return b
+            if state in ('FAILED', 'INVALID'):
+                raise ApiError(f'build {want} failed processing at Apple ({state})')
+            print(f'Waiting for Apple to ' + ('process' if b else 'list') + f' build {want}…', flush=True)
+            time.sleep(60)
+            continue
         # The newest upload, once Apple has processed it; an older build only if the newest one failed processing.
         if bs and bs[0]['attributes'].get('processingState') == 'VALID' and not bs[0]['attributes'].get('expired'):
             return bs[0]

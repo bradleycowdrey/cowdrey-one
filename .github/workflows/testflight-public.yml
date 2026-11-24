@@ -15,6 +15,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      build:
+        description: 'Build number to add (the iPhone app run number); empty for the newest processed build'
+        required: false
+        default: ''
       contact_phone:
         description: 'Beta App Review contact phone, set once in App Store Connect (kept out of the repo and the log)'
         required: false
@@ -49,6 +53,9 @@ jobs:
           if [[ -f "$GITHUB_EVENT_PATH" ]]; then
             CONTACT_PHONE=$(jq -r '.inputs.contact_phone // empty' "$GITHUB_EVENT_PATH")
             if [[ -n "$CONTACT_PHONE" ]]; then echo "::add-mask::$CONTACT_PHONE"; export CONTACT_PHONE; fi
+            # The build to add: the one the iPhone app run just uploaded (its run number), or the one asked for.
+            BUILD=$(jq -r '.workflow_run.run_number // .inputs.build // empty' "$GITHUB_EVENT_PATH")
+            if [[ "$BUILD" =~ ^[0-9]+$ ]]; then export BUILD; echo "Build to add: $BUILD"; else unset BUILD; fi
           fi
           pip install --quiet pyjwt cryptography
           python3 .github/scripts/testflight_public.py
