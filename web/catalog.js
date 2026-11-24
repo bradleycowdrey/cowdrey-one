@@ -150,7 +150,7 @@ window.CATALOG = {
       headline: 'Get your bearings.',
       category: 'Navigation',
       status: 'New',
-      version: '2.3.1',
+      version: '2.4.0',
       repo: 'bradleycowdrey/bearings',
       page: 'https://bradcowdrey.com/bearings',
       sky: ['#3D74B0', '#14243B'],
