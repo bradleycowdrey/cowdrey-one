@@ -22,8 +22,8 @@ the MIT License in their own repositories.
 
 ## What it does
 
-- **Discover:** each app on its own sky, the way Two Degrees puts each city on its own: a headline, a glimpse of
-  the app (a compass, °F and °C, live world clocks, a sunset, a page of Markdown, a signed PDF) and a Get button.
+- **Discover:** each app on a card of its own with a Get button. An app on the App Store shows its first App Store
+  screenshot, as the App Store does; Golden Hour, on the web, shows a drawn sunset.
 - **The right download, automatically.** Cowdrey One sees whether it’s on an iPhone or iPad, an Android phone, a
   Mac or another computer, and every Get button goes to the right place: the App Store, TestFlight, the Mac App
   Store, a signed `.dmg`, an APK, or the web app when there isn’t a version for that device. Settings can show the
@@ -46,8 +46,9 @@ the MIT License in their own repositories.
 - **Library:** the apps Cowdrey One sees on this device, with Open; the rest, with Get; and, in the Mac and Android
   apps, **updates** for downloads (`.dmg` and APK) when a newer release appears on the app’s GitHub repository. The
   App Store keeps its own apps up to date.
-- **Each app’s page,** as in the App Store: version, price, platforms, category, privacy and developer; What’s New
-  from the latest GitHub release; About and features; Get It On with every platform and requirement; and links to
+- **Each app’s page,** as in the App Store: its App Store screenshots in a row you swipe; version, price,
+  platforms, category, privacy and developer; What’s New from the latest GitHub release (the words about the app,
+  without the download tables, links and checksums); About and features; Get It On with every platform and requirement; and links to
   the product page, the source, issues and the Terms.
 - **Get on Your Phone / Share:** a QR code to open Cowdrey One on a phone (on a Mac, “point your phone’s camera
   here”), Share and Copy Link, and how to keep Cowdrey One on the Home Screen, the Dock or the desktop.
@@ -68,6 +69,7 @@ One web app in `web/`, with no build step and no dependencies at run time:
 | `web/index.html`, `app.css`, `app.js` | The interface: Discover, Library, Share, app pages, Get Every App. |
 | `web/manifest.webmanifest`, `sw.js` | Install to the Home Screen, Dock or desktop, and open offline. |
 | `web/apps/*.png` | Each app’s icon, cropped from its repository. |
+| `web/apps/shots/*.webp` | Each App Store app’s iPhone App Store screenshots, 600 px wide, from its repository: Cowdrey.PDF and Cowdrey.MD `docs/app-store`, Two Degrees `appstore/screenshots`, and Meridian and Bearings the `ci-appstore` branch their App Store workflow writes. |
 | `web/fonts/fraunces.woff2`, `web/vendor/qrcode.js` | Fraunces (SIL Open Font License) and qrcode-generator (MIT). |
 | `desktop/` | The **Tauri 2** shell that wraps `web/` as the Mac, iPhone, iPad and Android app, as for Cowdrey.MD and Cowdrey.PDF. |
 | `desktop/src-tauri/src/mac.rs` | The Mac installer: finds installed apps and versions, and installs a `.dmg` with one click. |
@@ -78,7 +80,8 @@ One web app in `web/`, with no build step and no dependencies at run time:
 ### Add an app
 
 Copy an entry in `web/catalog.js`, change it, and add its icon as `web/apps/<id>.png` (256 × 256, square, no
-rounded corners: Cowdrey One rounds them). Each platform lists its ways to get the app, best first
+rounded corners: Cowdrey One rounds them). For an app on the App Store, add its iPhone App Store screenshots as
+`web/apps/shots/<id>-1.webp`, `-2.webp` and so on (600 px wide) and set `shots` to how many there are. Each platform lists its ways to get the app, best first
 (`appstore`, `testflight`, `macappstore`, `dmg`, `apk`, `web`). `npm test` checks every entry.
 
 ### Run it

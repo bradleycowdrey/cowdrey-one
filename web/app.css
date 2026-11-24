@@ -58,7 +58,7 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body { margin: 0; min-height: 100vh; min-height: 100dvh; background: var(--bg); color: var(--ink); font: 400 17px/1.4 var(--font);
+body { margin: 0; overflow-x: clip; min-height: 100vh; min-height: 100dvh; background: var(--bg); color: var(--ink); font: 400 17px/1.4 var(--font);
   letter-spacing: -.01em; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; letter-spacing: inherit; }
 a { color: var(--clay-text); text-decoration: none; }
@@ -111,6 +111,10 @@ main { padding: calc(var(--safe-t) + 12px) 0 calc(var(--safe-b) + 112px); margin
 .feature-top .eyebrow { color: rgba(255, 255, 255, .78); }
 .feature-top h3 { margin: 4px 0 0; font: 520 31px/1.08 var(--serif); letter-spacing: -.01em; max-width: 17ch; text-wrap: balance; }
 .feature .art { position: absolute; inset: 104px 0 96px; display: grid; place-items: center; pointer-events: none; }
+/* An App Store app's card: its first App Store screenshot fills the card from the top (caption, then the phone), with
+   a soft shade at the foot so the bar reads over it. */
+.feature-shot { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; pointer-events: none; }
+.feature.has-shot::before { background: linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, .32)); }
 .feature-bar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 10px;
   border-radius: 18px; background: rgba(255, 255, 255, .16); -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
   box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .28); }
@@ -228,7 +232,7 @@ button.meta { text-align: left; }
 .segmented button { padding: 5px 12px; border-radius: 7px; font-size: 14px; font-weight: 500; color: var(--ink); }
 .segmented button[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); font-weight: 600; }
 :root[data-theme="dark"] .segmented button[aria-pressed="true"] { background: #3A3633; }
-.notes { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin-top: 4px; }
+.notes { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin-top: 4px; overflow-wrap: anywhere; }
 .notes ul { margin: 4px 0; padding-left: 18px; }
 .notes p { margin: 4px 0; }
 
@@ -260,7 +264,7 @@ button.meta { text-align: left; }
 .sheet.on { transform: none; }
 .sheet.dragging { transition: none; }
 .sheet.short { height: auto; max-height: calc(100vh - var(--safe-t) - 10px); max-height: calc(100dvh - var(--safe-t) - 10px); }
-.sheet-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--safe-b) + 28px); border-radius: inherit; }
+.sheet-scroll { flex: 1; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--safe-b) + 28px); border-radius: inherit; }
 .grabber { position: absolute; z-index: 3; top: 6px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: rgba(128, 128, 128, .45); }
 .sheet-close { position: absolute; z-index: 4; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
   background: rgba(120, 120, 128, .2); color: var(--ink-2); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
@@ -274,6 +278,13 @@ button.meta { text-align: left; }
 .hero { position: relative; color: #fff; background: linear-gradient(170deg, var(--sky1), var(--sky2)); padding: 0 20px 20px; border-radius: 14px 14px 0 0; overflow: hidden; isolation: isolate; }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(110% 70% at 90% 0%, rgba(255, 255, 255, .22), transparent 60%); }
 .hero .art { height: 230px; display: grid; place-items: center; }
+/* An App Store app's page: its App Store screenshots in a row you swipe, clear of the close button. */
+.hero .shots { display: grid; grid-auto-flow: column; grid-auto-columns: clamp(150px, 46vw, 210px); gap: 10px; overflow-x: auto;
+  scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; margin: 0 -20px 22px; padding: 56px 20px 2px;
+  scroll-padding: 0 20px; }
+.hero .shots::-webkit-scrollbar { display: none; }
+.hero .shots img { display: block; width: 100%; height: auto; aspect-ratio: 1320 / 2868; border-radius: 18px; scroll-snap-align: start;
+  background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .2), 0 10px 26px rgba(0, 0, 0, .28); }
 .hero-id { display: flex; gap: 16px; align-items: center; }
 .hero-id .icon { width: 96px; height: 96px; box-shadow: 0 10px 30px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(255, 255, 255, .2); }
 .hero-id h2 { margin: 0; font: 560 28px/1.08 var(--serif); }
@@ -287,7 +298,7 @@ button.meta { text-align: left; }
 .fact .k { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
 .fact .v { margin: 5px 0 3px; font-size: 20px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
 .fact .c { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
-.prose { font-size: 16px; line-height: 1.5; margin: 0; }
+.prose { font-size: 16px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
 .bullets { list-style: none; margin: 12px 0 0; padding: 0; }
 .bullets li { position: relative; padding-left: 20px; margin: 7px 0; font-size: 15px; line-height: 1.4; color: var(--ink-2); }
 .bullets li::before { content: ""; position: absolute; left: 3px; top: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--clay); }

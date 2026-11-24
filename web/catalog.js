@@ -2,6 +2,9 @@
    - version: the latest release when this file was last edited. The app also checks GitHub releases
      (repo) for anything newer, so this only needs bumping for apps without GitHub releases.
    - sky: the gradient behind the app's card and page, from its icon (top, bottom).
+   - shots: how many of the app's App Store screenshots are in apps/shots (<id>-1.webp, <id>-2.webp, …), in the
+     App Store's order: its card in Discover shows the first, and its page shows them all, as the App Store does.
+     Leave it out for an app that isn't on the App Store: its card and page show the drawn glimpse instead.
    - platforms: each has a requirement line and its ways to get the app, best first. kind is one of
      appstore, testflight, macappstore, dmg, apk, web. Leave a platform out if the app isn't on it.
    - status: optional label on the card, e.g. "New" or "Preview".
@@ -32,6 +35,7 @@ window.CATALOG = {
       repo: 'bradleycowdrey/cowdrey-pdf',
       page: 'https://bradcowdrey.com/cowdrey-pdf',
       sky: ['#B0234F', '#5E0A28'],
+      shots: 6,
       about: 'Read, mark up, sign, fill forms and rearrange pages, with nothing leaving your device. Edit text and pictures in place, OCR, redact and compress.',
       features: [
         'Click a line to retype it in its own font and colour',
@@ -61,6 +65,7 @@ window.CATALOG = {
       repo: 'bradleycowdrey/cowdrey-md',
       page: 'https://bradcowdrey.com/cowdrey-md',
       sky: ['#4B70E6', '#1E3BA6'],
+      shots: 6,
       about: 'Write Markdown on the left and see a printable page on the right, with a ribbon toolbar, live preview, math, diagrams, callouts and tables. Files stay where they are.',
       features: [
         'Side-by-side writing with a paper page, or read and tap Edit on a phone',
@@ -92,6 +97,7 @@ window.CATALOG = {
       repo: 'bradleycowdrey/meridian',
       page: 'https://bradcowdrey.com/meridian',
       sky: ['#4A7DB8', '#16243A'],
+      shots: 5,
       about: 'Each city on a photo of its skyline, by day or by night there, with its time, a status (Working, Off hours, Weekend or the holiday’s name) and hour tiles that make working hours stand out.',
       features: [
         'Find a Time: see when everyone is working, then send the invite',
@@ -122,7 +128,8 @@ window.CATALOG = {
       version: '2.3.5',
       repo: 'bradleycowdrey/two-degrees',
       page: 'https://bradcowdrey.com/two-degrees',
-      sky: ['#6B86AD', '#2A3550'],
+      sky: ['#72AAE9', '#204294'],
+      shots: 5,
       about: 'Every temperature twice, °F and °C side by side, so nobody has to do the math. Each city on its own sky, with widgets on every platform.',
       features: [
         '°F and °C side by side, everywhere: pick which one is large',
@@ -155,6 +162,7 @@ window.CATALOG = {
       repo: 'bradleycowdrey/bearings',
       page: 'https://bradcowdrey.com/bearings',
       sky: ['#3D74B0', '#14243B'],
+      shots: 6,
       about: 'The compass, where you are, the time, your coordinates and elevation, the sun and moon, and a map, on one screen. Free and open source, with widgets.',
       features: [
         'A clear compass, true or magnetic north, with the declination and accuracy',

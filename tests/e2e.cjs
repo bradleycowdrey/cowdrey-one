@@ -32,6 +32,7 @@ function catalogTests() {
     check(Array.isArray(a.sky) && a.sky.length === 2 && a.sky.every((c) => /^#[0-9a-f]{6}$/i.test(c)), `${where} sky is two colours`);
     check(Array.isArray(a.features) && a.features.length >= 3, `${where} has features`);
     check(fs.existsSync(path.join(WEB, 'apps', a.id + '.png')), `${where} icon apps/${a.id}.png exists`);
+    if (a.shots) check(Array.from({ length: a.shots }, (_, k) => path.join(WEB, 'apps', 'shots', `${a.id}-${k + 1}.webp`)).every((f) => fs.existsSync(f)), `${where} has its ${a.shots} App Store screenshots in apps/shots`);
     const plats = Object.keys(a.platforms || {});
     check(plats.length > 0 && plats.every((p) => ['ios', 'android', 'mac', 'web'].includes(p)), `${where} platforms are ios, android, mac or web`);
     check(!!a.platforms.web, `${where} has a web version (the fallback on every device)`);
@@ -45,7 +46,7 @@ function catalogTests() {
 
 // ---------- A static server for web/ ----------
 function serve() {
-  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p.endsWith('/')) p += 'index.html';
@@ -71,7 +72,8 @@ async function context(browser, base, opts, releases) {
       const v = releases[repo];
       if (!v) return route.fulfill({ status: 404, contentType: 'application/json', body: '{}', headers: { 'access-control-allow-origin': '*' } });
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
-        body: JSON.stringify({ tag_name: 'v' + v, name: 'v' + v, published_at: '2026-11-20T12:00:00Z', body: `- What changed in ${v}`, html_url: 'https://github.com/x' }) });
+        body: JSON.stringify({ tag_name: 'v' + v, name: 'v' + v, published_at: '2026-11-20T12:00:00Z', html_url: 'https://github.com/x',
+          body: `## What's new\n\n- What changed in ${v}\n\n## Downloads\n\n| Mac | https://github.com/bradleycowdrey/${repo}/releases/download/v${v}/A-very-long-file-name-${v}-universal.dmg |\n\nSHA-256: 3f1c9a0b7d2e4f6a8b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c` }) });
     }
     if (/\.(dmg|apk)$/.test(u)) {   // a download, as GitHub sends it: the page stays where it is
       return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: 'x', headers: { 'content-disposition': 'attachment; filename=app' } });
@@ -122,6 +124,17 @@ async function open(ctx, url, errors, name) {
     check((await p.$$('.pill.done, use[href="#i-check-circle"]')).length === 0, 'no app shows a check');
     check(!(await p.$('#setup-slot .ring')), 'no count of apps on this iPhone, which a browser can’t know');
     check(await p.isVisible('.toast'), 'a note says where the App Store opened');
+    const withShots = C.apps.filter((a) => a.shots);
+    check((await p.$$('.feature .feature-shot')).length === withShots.length, `each App Store app’s card shows its first App Store screenshot (${withShots.length})`);
+    check((await p.getAttribute('.feature[data-id="bearings"] .feature-shot', 'src')) === 'apps/shots/bearings-1.webp', '… Bearings’ card shows Bearings’ first one');
+    check(!(await p.$('.feature[data-id="golden-hour"] .feature-shot')) && !!(await p.$('.feature[data-id="golden-hour"] .art')), 'an app not on the App Store keeps its drawn card');
+    await p.click('#all-apps [data-id="bearings"] .main'); await p.waitForTimeout(1500);
+    check((await p.$$('.sheet .hero .shots img')).length === C.apps.find((a) => a.id === 'bearings').shots, 'its page shows every App Store screenshot, in a row, as the App Store does');
+    const notes = await p.textContent('.sheet #notes');
+    check(/What changed in/.test(notes) && !/\||SHA-256|https?:/.test(notes), 'What’s New keeps the words and leaves out download tables, links and checksums');
+    const wide = await p.evaluate(() => { const sc = document.querySelector('.sheet .sheet-scroll'); sc.scrollLeft = 200; return { w: sc.scrollWidth - sc.clientWidth, left: sc.scrollLeft }; });
+    check(wide.w === 0 && wide.left === 0, `the page is never wider than the screen, so it can’t slide sideways (${JSON.stringify(wide)})`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('.tab[data-tab="share"]'); await p.waitForTimeout(300);
     check(await p.evaluate(() => (document.querySelector('.qr svg path') || {}).getAttribute && document.querySelector('.qr svg path').getAttribute('d').length > 500), 'Share shows a QR code');
     await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);

@@ -376,10 +376,17 @@
       ${pillWrap(a)}</div>`;
   }
 
+  // An app's App Store screenshots (catalog shots), in the App Store's order.
+  const shotUrl = (a, n) => `apps/shots/${a.id}-${n}.webp`;
   function featureCard(a, i) {
-    return `<div class="feature" style="${sky(a)}" data-act="open-app" data-id="${a.id}" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${APPS.length}: ${esc(a.name)}">
-      <div class="feature-top"><p class="eyebrow">${esc(a.status || a.category)}</p><h3>${esc(a.headline)}</h3></div>
-      <div class="art">${art(a)}</div>
+    // On the App Store: its first App Store screenshot, caption and all, as the App Store shows it. Otherwise the
+    // app's headline and a drawn glimpse of it.
+    const face = a.shots
+      ? `<img class="feature-shot" src="${shotUrl(a, 1)}" alt="" ${i ? 'loading="lazy" ' : ''}decoding="async">`
+      : `<div class="feature-top"><p class="eyebrow">${esc(a.status || a.category)}</p><h3>${esc(a.headline)}</h3></div>
+      <div class="art">${art(a)}</div>`;
+    return `<div class="feature${a.shots ? ' has-shot' : ''}" style="${sky(a)}" data-act="open-app" data-id="${a.id}" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${APPS.length}: ${esc(a.name)}${a.shots ? '' : '. ' + esc(a.headline)}">
+      ${face}
       <div class="feature-bar">${appIcon(a)}<button class="meta" data-act="open-app" data-id="${a.id}"><b>${esc(a.name)}</b><small>${esc(a.subtitle)}</small></button>${pill(a, 'light')}</div></div>`;
   }
 
@@ -463,7 +470,7 @@
       ${ups.length ? `<div class="section-head"><h2>Updates</h2>${ups.length > 1 ? '<button data-act="update-all">Update All</button>' : ''}</div>
         <div class="group">${ups.map((a) => {
           const r = releases[a.id];
-          return appRow(a, { sub: `Version ${esc(mine(a).v)} → ${esc(latest(a))}${r && r.notes ? ' · ' + esc(plain(r.notes).slice(0, 140)) : ''}`, clamp: true, plats: false });
+          return appRow(a, { sub: `Version ${esc(mine(a).v)} → ${esc(latest(a))}${r && r.notes ? ' · ' + esc(plain(releaseText(r.notes)).slice(0, 140)) : ''}`, clamp: true, plats: false });
         }).join('')}</div>` : ''}
       ${got.length ? `<div class="section-head"><h2>On ${esc(capital(thisDevice()))}</h2></div>
         <div class="group">${got.map((a) => appRow(a, { sub: viaLine(a), plats: false })).join('')}</div>`
@@ -523,6 +530,19 @@
   function plain(md) {
     return String(md).replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').trim();
   }
+  // GitHub release notes also carry download tables, file links and checksums: What's New keeps the words about the
+  // app, and stops at a Downloads or Install section.
+  function releaseText(md) {
+    const out = [];
+    for (const raw of String(md || '').replace(/\r/g, '').split('\n')) {
+      const l = raw.trim();
+      if (/^#{1,6}\s*(downloads?|install|installation|assets|files|checksums?|sha-?256|verify)/i.test(l)) break;
+      if (/^#{1,6}\s*what.?s new\b/i.test(l)) continue;   // the section is already called What's New
+      if (/^\|/.test(l) || /^(sha-?256|sha1|md5)\b/i.test(l) || /^<?https?:\/\/\S+>?$/.test(l) || /^-{3,}$/.test(l) || /^!\[/.test(l)) continue;
+      out.push(raw);
+    }
+    return out.join('\n');
+  }
   function mdLite(md) {
     const lines = String(md).replace(/\r/g, '').split('\n');
     let out = '', inList = false;
@@ -564,8 +584,9 @@
     const r = releases[a.id];
     const v = latest(a);
     const head = `<div class="section-head"><h2>What’s New</h2><span class="note">Version ${esc(v)}${r && r.date ? ' · ' + fmtDay(r.date) : ''}</span></div>`;
-    if (r && r.notes && plain(r.notes)) {
-      return `${head}<div class="notes" id="notes">${mdLite(r.notes.slice(0, 1600))}</div>
+    const text = r && r.notes ? releaseText(r.notes) : '';
+    if (plain(text)) {
+      return `${head}<div class="notes" id="notes">${mdLite(text.slice(0, 1600))}</div>
         <p style="margin:8px 0 0"><a href="${esc(r.url || `https://github.com/${a.repo}/releases`)}" target="_blank" rel="noopener" data-act="ext">Release notes on GitHub</a></p>`;
     }
     const log = a.changelog || (a.repo ? `https://github.com/${a.repo}/blob/main/CHANGELOG.md` : '');
@@ -573,7 +594,13 @@
   }
   function appPage(a) {
     const plats = SHOWN.filter((p) => a.platforms[p]);
-    return `<div class="hero" style="${sky(a)}"><div class="art">${art(a)}</div>
+    // The top of the page: the app's App Store screenshots in a row you swipe, as on the App Store; or, for an app
+    // that isn't there, the drawn glimpse.
+    const top = a.shots
+      ? `<div class="shots" role="list" aria-label="${esc(a.name)} screenshots">${Array.from({ length: a.shots }, (_, k) =>
+          `<img role="listitem" src="${shotUrl(a, k + 1)}" alt="${esc(a.name)}, screenshot ${k + 1} of ${a.shots}" ${k > 1 ? 'loading="lazy" ' : ''}decoding="async">`).join('')}</div>`
+      : `<div class="art">${art(a)}</div>`;
+    return `<div class="hero${a.shots ? ' has-shots' : ''}" style="${sky(a)}">${top}
         <div class="hero-id">${appIcon(a)}<div><h2 id="sheet-title">${esc(a.name)}</h2><p>${esc(a.subtitle)}</p>
           <div class="hero-actions">${pill(a, 'light')}<button class="round" data-act="share-app" data-id="${a.id}" aria-label="Share ${esc(a.name)}">${icon('share')}</button></div></div></div></div>
       <div class="sheet-pad">
@@ -730,7 +757,7 @@
     const sc = $('.sheet-scroll', s);
     let y0 = null, dy = 0, t0 = 0;
     s.addEventListener('touchstart', (e) => {
-      if (innerWidth >= 900 || s.dataset.locked || sc.scrollTop > 0 || e.target.closest('.carousel,.facts')) return;
+      if (innerWidth >= 900 || s.dataset.locked || sc.scrollTop > 0 || e.target.closest('.carousel,.facts,.shots')) return;
       y0 = e.touches[0].clientY; dy = 0; t0 = Date.now();
     }, { passive: true });
     s.addEventListener('touchmove', (e) => {
