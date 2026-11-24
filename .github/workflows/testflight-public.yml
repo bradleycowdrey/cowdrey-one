@@ -34,7 +34,6 @@ jobs:
       APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       P8: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
       HAS_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
-      CONTACT_PHONE: ${{ inputs.contact_phone }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +44,11 @@ jobs:
       - name: Update TestFlight
         if: env.HAS_KEY == 'true'
         run: |
-          if [[ -n "$CONTACT_PHONE" ]]; then echo "::add-mask::$CONTACT_PHONE"; fi
+          # A contact phone given to this run is read from the event file and masked before anything can print it
+          # (an env: entry or ${{ }} in this script would show it in the log). Apple keeps it after the first run.
+          if [[ -f "$GITHUB_EVENT_PATH" ]]; then
+            CONTACT_PHONE=$(jq -r '.inputs.contact_phone // empty' "$GITHUB_EVENT_PATH")
+            if [[ -n "$CONTACT_PHONE" ]]; then echo "::add-mask::$CONTACT_PHONE"; export CONTACT_PHONE; fi
+          fi
           pip install --quiet pyjwt cryptography
           python3 .github/scripts/testflight_public.py
