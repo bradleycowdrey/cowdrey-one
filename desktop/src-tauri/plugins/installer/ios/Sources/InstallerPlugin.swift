@@ -14,6 +14,24 @@ struct StoreArgs: Decodable {
   let id: String  // the App Store ID, the number after "id" in an apps.apple.com link
 }
 
+struct CanOpenArgs: Decodable {
+  let schemes: [String]  // apps' own links (URL schemes), as in catalog.js
+}
+
+struct CanOpenResult: Encodable {
+  let open: [String: Bool]  // scheme → whether its app is installed
+}
+
+struct OpenArgs: Decodable {
+  let scheme: String
+}
+
+// An app's link, "twodegrees://", from a bare scheme name; nil for anything that isn't one.
+private func appLink(_ scheme: String) -> URL? {
+  guard scheme.range(of: "^[a-z][a-z0-9+.-]*$", options: .regularExpression) != nil else { return nil }
+  return URL(string: scheme + "://")
+}
+
 class InstallerPlugin: Plugin, SKStoreProductViewControllerDelegate {
   var webview: WKWebView!
   private var pending: Invoke?
@@ -45,6 +63,34 @@ class InstallerPlugin: Plugin, SKStoreProductViewControllerDelegate {
             self.finish(error: error?.localizedDescription ?? "The App Store page didn't open")
           }
         }
+      }
+    }
+  }
+
+  // Which apps are on this iPhone. iOS doesn't let one app list the others: it only answers whether an app's link
+  // opens, and only for schemes listed under LSApplicationQueriesSchemes in Info.plist (the iPhone workflow adds every
+  // scheme in catalog.js). So an app counts as installed only when its link opens; nothing else is guessed.
+  @objc public func canOpen(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(CanOpenArgs.self)
+    DispatchQueue.main.async {
+      var open: [String: Bool] = [:]
+      for scheme in args.schemes {
+        if let url = appLink(scheme) { open[scheme] = UIApplication.shared.canOpenURL(url) }
+      }
+      invoke.resolve(CanOpenResult(open: open))
+    }
+  }
+
+  // Opens an installed app by its link.
+  @objc public func openApp(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(OpenArgs.self)
+    guard let url = appLink(args.scheme) else {
+      invoke.reject("That app can't be opened from here")
+      return
+    }
+    DispatchQueue.main.async {
+      UIApplication.shared.open(url, options: [:]) { opened in
+        if opened { invoke.resolve() } else { invoke.reject("That app isn't on this iPhone") }
       }
     }
   }

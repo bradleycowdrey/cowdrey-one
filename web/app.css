@@ -147,8 +147,6 @@ button.meta { text-align: left; }
 .row .glyph svg { width: 18px; height: 18px; }
 .row.pref { --inset: 60px; }
 .row select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; font-size: 16px; }
-.row .del { color: var(--red); width: 24px; height: 24px; display: grid; place-items: center; flex: none; }
-.row .del svg { width: 22px; height: 22px; }
 .status-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: .03em;
   text-transform: uppercase; vertical-align: 2px; color: var(--clay-text); background: var(--clay-tint); }
 .here-tag { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 600; color: var(--clay-text); }
@@ -160,8 +158,6 @@ button.meta { text-align: left; }
 .pill:active { transform: scale(.94); }
 .pill.solid { background: var(--clay-button); color: var(--on-accent); }
 .pill.light { background: rgba(255, 255, 255, .92); color: #0E0D0B; }
-.pill.done { min-width: 30px; width: 30px; padding: 0; background: transparent; color: var(--green); }
-.pill.done svg { width: 26px; height: 26px; }
 .pill.light.done { color: #fff; --on-accent: #1E2A3A; }
 .pill.busy { min-width: 30px; width: 30px; padding: 0; color: transparent; }
 .pill.busy::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; border: 2.5px solid var(--clay); border-right-color: transparent; animation: spin .7s linear infinite; }
@@ -196,6 +192,12 @@ button.meta { text-align: left; }
 .ring .track { stroke: var(--fill); }
 .ring .bar { stroke: var(--clay); stroke-linecap: round; transition: stroke-dashoffset .6s var(--ease); }
 .ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Where Cowdrey One can't count what's installed, three app icons stand in for the ring. */
+.setup-stack { position: relative; width: 64px; height: 64px; flex: none; }
+.setup-stack .icon { position: absolute; width: 38px; height: 38px; box-shadow: var(--shadow-lift); }
+.setup-stack .icon:nth-child(1) { left: 0; top: 14px; transform: rotate(-10deg); }
+.setup-stack .icon:nth-child(2) { left: 13px; top: 4px; z-index: 2; }
+.setup-stack .icon:nth-child(3) { left: 26px; top: 14px; transform: rotate(10deg); }
 .setup .main { flex: 1; min-width: 0; }
 .setup h3 { margin: 0; font-size: 17px; font-weight: 600; }
 .setup p { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }

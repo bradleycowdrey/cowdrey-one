@@ -1,7 +1,8 @@
 //! Cowdrey One's installer on iPhone, iPad and Android. The work is done natively:
 //! - Android (android/src/main/java/InstallerPlugin.kt): downloads each app's APK and hands it to Android's
 //!   package installer, which asks once per app; finds which apps are installed, and their versions.
-//! - iPhone and iPad (ios/Sources/InstallerPlugin.swift): shows an app's App Store page inside Cowdrey One.
+//! - iPhone and iPad (ios/Sources/InstallerPlugin.swift): shows an app's App Store page inside Cowdrey One; sees
+//!   whether an app with its own link (URL scheme) is installed, and opens it.
 //! On the Mac, installing is done by the app itself (src/mac.rs), so this plugin does nothing there.
 
 use tauri::{
@@ -22,7 +23,7 @@ tauri::ios_plugin_binding!(init_plugin_installer);
 struct Native<R: Runtime>(tauri::plugin::PluginHandle<R>);
 
 /// The native methods the web app may call, and nothing else.
-const METHODS: &[&str] = &["installedVersions", "openApp", "canInstall", "openInstallSettings", "install", "showStore"];
+const METHODS: &[&str] = &["installedVersions", "openApp", "canInstall", "openInstallSettings", "install", "showStore", "canOpen"];
 
 #[tauri::command]
 async fn native<R: Runtime>(

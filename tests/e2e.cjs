@@ -117,15 +117,17 @@ async function open(ctx, url, errors, name) {
     const [popup] = await Promise.all([ctx.waitForEvent('page'), p.click('#all-apps [data-id="bearings"] a.pill')]);
     await popup.close();
     await p.waitForTimeout(1200);
-    check(await p.evaluate(() => window.CowdreyOne.state('bearings').s) === 'done', 'Get marks Bearings as on this iPhone');
-    check((await p.textContent('#setup-slot .ring b')).trim() === `1/${C.apps.length}`, 'the set-up ring counts it');
+    check(await p.evaluate(() => window.CowdreyOne.state('bearings').s) === 'get', 'tapping Get doesn’t mark Bearings as on this iPhone (a browser can’t see that)');
+    check((await p.textContent('#all-apps [data-id="bearings"] .pill')).trim() === 'Get', '… so it still says Get');
+    check((await p.$$('.pill.done, use[href="#i-check-circle"]')).length === 0, 'no app shows a check');
+    check(!(await p.$('#setup-slot .ring')), 'no count of apps on this iPhone, which a browser can’t know');
     check(await p.isVisible('.toast'), 'a note says where the App Store opened');
-    await p.click('.toast button'); await p.waitForTimeout(300);
-    check(await p.evaluate(() => window.CowdreyOne.state('bearings').s) === 'get', 'Undo takes it back off');
     await p.click('.tab[data-tab="share"]'); await p.waitForTimeout(300);
     check(await p.evaluate(() => (document.querySelector('.qr svg path') || {}).getAttribute && document.querySelector('.qr svg path').getAttribute('d').length > 500), 'Share shows a QR code');
     await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
-    check(await p.isVisible('#view-library .empty'), 'an empty Library says what it is for');
+    check(!(await p.$('#view-library .reading')), 'the Library doesn’t claim a number of apps on this iPhone');
+    check((await p.$$('#view-library .row.app')).length === C.apps.length, 'it lists every app, each with Get or Open');
+    check(/can’t see which apps are installed/.test(await p.textContent('#view-library .group-foot')), 'and says a browser can’t see what’s installed');
     check(seen.api > 0, 'it checked GitHub for new versions');
     await ctx.close();
   }
@@ -142,9 +144,9 @@ async function open(ctx, url, errors, name) {
     await p.waitForTimeout(1500);
     check(await p.evaluate(() => window.CowdreyOne.platform()) === 'android', 'an Android phone is detected as Android');
     check(/\.apk$/.test(await p.getAttribute('#all-apps [data-id="two-degrees"] a.pill', 'href')), 'Two Degrees offers its APK on Android');
-    check(await p.evaluate(() => window.CowdreyOne.state('bearings').s) === 'update', 'a newer release on GitHub shows as an update');
-    check((await p.textContent('.tab .badge')).trim() === '1', 'the Library tab shows one update');
-    check(await p.isVisible('#view-library [data-act="get"]'), 'the Library lists the update with its button');
+    check(await p.evaluate(() => window.CowdreyOne.state('bearings').s) === 'get', 'a list kept by an earlier version doesn’t count Bearings as installed');
+    check(await p.evaluate(() => localStorage.getItem('cowdrey-one.installed')) === '{}', '… and that list is dropped');
+    check(await p.isHidden('.tab .badge'), 'no update is claimed for an app a browser can’t see');
     check((await p.textContent('#all-apps [data-id="cowdrey-pdf"] .pill')).trim() === 'Open', 'an app without an Android version falls back to the web');
     await ctx.close();
   }
@@ -184,7 +186,7 @@ async function open(ctx, url, errors, name) {
     await p.click('.sheet [data-act="bulk"]');
     await p.waitForTimeout(7500);
     check(downloads.length === 5 && downloads.every((u) => u.endsWith('.dmg')), `it downloads every .dmg (${downloads.length})`);
-    check((await p.textContent('#setup-slot .ring b')).trim() === `5/${C.apps.length}`, 'the ring counts them');
+    check(await p.evaluate(() => ['cowdrey-pdf', 'cowdrey-md', 'meridian', 'two-degrees', 'bearings'].every((id) => window.CowdreyOne.state(id).s === 'get')), 'downloading isn’t installing: none is marked as on this Mac');
     await ctx.close();
   }
 
@@ -206,6 +208,8 @@ async function open(ctx, url, errors, name) {
         if (args.method === 'installedVersions') { const apps = {}; for (const k of x.packages) if (now[k]) apps[k] = { version: now[k] }; return { apps }; }
         if (args.method === 'install') { now[x.packageName] = '9.9.9'; return { status: 'installed' }; }
         if (args.method === 'showStore') { window.__calls.push('store:' + x.id); return null; }
+        if (args.method === 'canOpen') { const open = {}; for (const sc of x.schemes) open[sc] = !!now[sc]; return { open }; }
+        if (args.method === 'openApp') { window.__calls.push('open:' + (x.scheme || x.packageName)); return null; }
       }
       return null;
     };
@@ -227,6 +231,7 @@ async function open(ctx, url, errors, name) {
     check(await p.evaluate(() => window.CowdreyOne.native) === 'mac', 'it knows it is the Mac app');
     check(await p.evaluate(() => window.CowdreyOne.state('meridian').s) === 'done', 'it sees Meridian in Applications');
     check((await p.textContent('#all-apps [data-id="meridian"] .pill')).trim() === 'Open', '… and offers Open');
+    check((await p.textContent('#setup-slot .ring b')).trim() === '1/5', 'the ring counts what is really in Applications (1 of the 5 Mac apps)');
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
     check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Install All (4)', 'Install All covers the four Mac apps not installed');
     await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(1500);
@@ -262,6 +267,9 @@ async function open(ctx, url, errors, name) {
     const ids = (await calls(p)).filter((x) => String(x).startsWith('store:')).map((x) => x.slice(6));
     const want = C.apps.map((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore' ? a.platforms.ios.get[0].url.match(/id(\d+)/)[1] : null).filter(Boolean);
     check(JSON.stringify(ids) === JSON.stringify(want), `it shows each App Store page in turn, in order (${ids.join(', ')})`);
+    check(await p.evaluate(() => ['cowdrey-md', 'meridian', 'two-degrees', 'bearings'].every((id) => window.CowdreyOne.state(id).s === 'get')), 'closing the App Store pages doesn’t mark any app as on this iPhone');
+    check((await p.$$('.pill.done, use[href="#i-check-circle"]')).length === 0, 'no app shows a check');
+    check(!(await p.$('#setup-slot .ring')), 'no count, since iOS doesn’t let Cowdrey One see most apps');
     // Leaving the app and coming back (opening it from the Home Screen, or switching to it) starts at the top.
     const comeBack = () => p.evaluate(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
@@ -278,6 +286,24 @@ async function open(ctx, url, errors, name) {
     check(await p.evaluate(() => window.scrollY) > 0, '(the list is scrolled down)');
     await comeBack(); await p.waitForTimeout(100);
     check(await p.evaluate(() => window.scrollY) === 0, 'opening or switching back to the app starts at the top of the screen');
+    await ctx.close();
+  }
+
+  console.log('iPhone app, with Two Degrees installed');
+  {
+    const { ctx, p } = await nativeApp('iphone-app-2', { ...devices['iPhone 15 Pro'] }, { twodegrees: true });
+    check((await calls(p)).includes('canOpen'), 'it asks iOS which apps’ links open');
+    check(await p.evaluate(() => window.CowdreyOne.state('two-degrees').s) === 'done', 'it sees Two Degrees, by its link');
+    check((await p.textContent('#all-apps [data-id="two-degrees"] .pill')).trim() === 'Open', '… and offers Open');
+    check((await p.textContent('#all-apps [data-id="bearings"] .pill')).trim() === 'Get', 'an app it can’t see still says Get');
+    await p.click('#all-apps [data-id="two-degrees"] [data-act="launch"]'); await p.waitForTimeout(200);
+    check((await calls(p)).includes('open:twodegrees'), 'Open opens Two Degrees');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get All (3)', 'Get All leaves out Two Degrees, which is already here');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
+    check((await p.textContent('#view-library .section-head h2')).trim() === 'On This iPhone', 'the Library lists Two Degrees as on this iPhone');
+    check((await p.$$('#view-library .group')).length >= 2 && /More Apps/.test(await p.textContent('#view-library')), '… and the rest as More Apps, not “not on this iPhone”');
     await ctx.close();
   }
 

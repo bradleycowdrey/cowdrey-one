@@ -114,6 +114,7 @@ window.CATALOG = {
       id: 'two-degrees',
       bundle: 'com.bradcowdrey.twodegrees',      // Android package and Mac bundle ID
       macApp: 'TwoDegrees.app',
+      scheme: 'twodegrees',      // its link (URL scheme): lets the iPhone app see whether Two Degrees is installed
       name: 'Two Degrees',
       subtitle: 'The weather in °F and °C at once',
       headline: 'Two scales. One forecast.',

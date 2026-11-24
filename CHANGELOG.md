@@ -14,4 +14,6 @@ The first version: every app by Bradley Cowdrey in one place.
 - **Library,** with updates for downloaded apps from each app’s GitHub releases.
 - **Get on Your Phone:** a QR code, Share and Copy Link, and how to keep Cowdrey One on each device.
 - **Starts at the top:** opening Cowdrey One, or switching back to it, shows the top of the screen.
+- **Only what’s really installed:** an app shows as installed (with Open) only when Cowdrey One sees it on the
+  device, never because Get was tapped. The iPhone app sees apps with their own link, such as Two Degrees.
 - Light and dark, a floating tab bar on phones with Cowdrey One at the top, and a sidebar on the Mac.

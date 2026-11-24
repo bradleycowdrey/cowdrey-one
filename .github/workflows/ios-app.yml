@@ -118,6 +118,15 @@ jobs:
           PLIST=$(find src-tauri/gen/apple -name Info.plist -path '*_iOS*' | head -1)
           # Uses only the encryption built into iOS, so no export compliance questions on each upload.
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST"
+          # The apps' own links (URL schemes in catalog.js): iOS lets Cowdrey One ask whether these open, which is
+          # the only way an iPhone app can see that another app is installed.
+          /usr/libexec/PlistBuddy -c "Delete :LSApplicationQueriesSchemes" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes array" "$PLIST"
+          i=0
+          for s in $(node -e "global.window={};require('../web/catalog.js');console.log(window.CATALOG.apps.filter(a=>a.scheme).map(a=>a.scheme).join(' '))"); do
+            /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes:$i string $s" "$PLIST"; i=$((i+1))
+          done
+          echo "Apps Cowdrey One can see on iPhone: $i"; /usr/libexec/PlistBuddy -c "Print :LSApplicationQueriesSchemes" "$PLIST"
 
       # Each run signs on a fresh machine: Xcode makes an "Apple Development: Created via API" certificate whose
       # private key dies with the machine, and Apple caps how many an account may hold. Revoke only those;

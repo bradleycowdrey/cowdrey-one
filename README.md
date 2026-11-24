@@ -28,8 +28,8 @@ the MIT License in their own repositories.
   Mac or another computer, and every Get button goes to the right place: the App Store, TestFlight, the Mac App
   Store, a signed `.dmg`, an APK, or the web app when there isn’t a version for that device. Settings can show the
   downloads for another device instead.
-- **Get Every App:** a ring counts how many are on this device, and one button gets the rest, as far as each
-  platform allows:
+- **Get Every App:** one button gets every app, as far as each platform allows (in the Mac and Android apps, a ring
+  counts how many are installed):
 
   | | In a browser | In the Cowdrey One app |
   |---|---|---|
@@ -38,9 +38,14 @@ the MIT License in their own repositories.
   | **iPhone and iPad** | One tap per app: each opens the App Store | **Get All**: each app’s App Store page opens inside Cowdrey One in turn; tap Get, then Done. iOS never lets one app install another. |
 
   The Mac and Android apps also see which apps are really installed, and their versions, and offer **Open**.
-- **Library:** the apps you got here, with the version and how; the ones not yet on this device; and **updates**
-  for downloads (`.dmg` and APK) when a newer release appears on the app’s GitHub repository. The App Store keeps
-  its own apps up to date. Edit removes an app from the list.
+- **Only what’s really installed.** Cowdrey One never marks an app as installed because Get was tapped: opening the
+  App Store or starting a download doesn’t mean the app was installed. The Mac and Android apps see every app. iOS
+  doesn’t let one app see which others are installed, so the iPhone app can only ask whether an app’s own link (its
+  URL scheme, `scheme` in `catalog.js`) opens: today that’s Two Degrees (`twodegrees://`). An app that adds a URL
+  scheme, with it in `catalog.js`, is seen too. A browser sees none, so it shows Get for every app.
+- **Library:** the apps Cowdrey One sees on this device, with Open; the rest, with Get; and, in the Mac and Android
+  apps, **updates** for downloads (`.dmg` and APK) when a newer release appears on the app’s GitHub repository. The
+  App Store keeps its own apps up to date.
 - **Each app’s page,** as in the App Store: version, price, platforms, category, privacy and developer; What’s New
   from the latest GitHub release; About and features; Get It On with every platform and requirement; and links to
   the product page, the source, issues and the Terms.
@@ -49,8 +54,8 @@ the MIT License in their own repositories.
 - **Apple’s look in bradcowdrey.com’s colours:** cream, ink and clay, Fraunces for titles, the system font for
   everything else; a floating tab bar on phones and a sidebar on the Mac; sheets that slide up and pull down;
   light and dark, following the system or chosen in Settings.
-- **Private:** no account, no ads, no analytics. The list of apps you got is kept in this browser or app only. The
-  one request Cowdrey One makes itself is to GitHub’s public releases API, at most every six hours, for versions.
+- **Private:** no account, no ads, no analytics. What it sees installed stays on this device. The one request
+  Cowdrey One makes itself is to GitHub’s public releases API, at most every six hours, for versions.
 - First launch asks to agree to the [Terms of Use and Privacy](https://bradcowdrey.com/legal), as every app does.
 
 ## How it’s built
