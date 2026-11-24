@@ -26,7 +26,7 @@ window.CATALOG = {
       macApp: 'Cowdrey.PDF.app',
       name: 'Cowdrey.PDF',
       subtitle: 'Edit, comment, organize and protect PDFs',
-      headline: 'Sign it. Fill it. Fix it.',
+      headline: 'Sign it. Fill\u00a0it. Fix\u00a0it.',   // no-break spaces keep "Fill it." and "Fix it." together
       category: 'Documents',
       version: '1.0.0',
       repo: 'bradleycowdrey/cowdrey-pdf',
