@@ -36,10 +36,10 @@ Fraunces at 560 / opsz 48 / −0.012em is exactly how Cowdrey One sets its title
 |---|---|---|
 | Cowdrey.PDF | `pdf` | `tests/app-store-screens.mjs` |
 | Cowdrey.MD | `md` | `tests/app-store-screens.mjs` |
-| Meridian | `meridian` | |
-| Two Degrees | `twodegrees` | |
-| Bearings | `bearings` | |
-| Golden Hour | `goldenhour` | |
+| Meridian | `meridian` | `scripts/appstore-shots.mjs` |
+| Two Degrees | `twodegrees` | `scripts/app-store-screens.mjs` |
+| Bearings | `bearings` | `scripts/store-frames.mjs` |
+| Golden Hour | `goldenhour` | `tests/app-store-screens.mjs` (iPhone only; the app is iPhone-only) |
 | Cowdrey One | `one` | `tests/app-store-screens.mjs` (`npm run screens`), using this master copy |
 
 ## Using it
