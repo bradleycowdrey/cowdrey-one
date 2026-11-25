@@ -111,8 +111,9 @@ iPhone build has a public home (the App Store, TestFlight’s public link, or a 
 
 Secrets, as in the other repositories (Settings → Secrets and variables → Actions): `DEVELOPER_ID_P12`,
 `DEVELOPER_ID_P12_PASSWORD`, `CODESIGN_IDENTITY`, `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID`;
-`APP_STORE_CONNECT_API_KEY`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`; `ANDROID_KEYSTORE`,
-`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`.
+`APP_STORE_CONNECT_API_KEY`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`; `ANDROID_KEYSTORE_B64`
+(the upload keystore as base64: `base64 -i ~/cowdrey-upload.jks | pbcopy`), `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`, as for Bearings.
 
 ## Before the first release
 
