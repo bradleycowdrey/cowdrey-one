@@ -51,7 +51,8 @@ window.CATALOG = {
         'Every PDF you open is kept on this device, with its mark-up',
       ],
       platforms: {
-        ios: { req: 'iOS 15 or later · App Store version on its way', get: [
+        ios: { req: 'iOS 15 or later', get: [
+          { kind: 'appstore', url: 'https://apps.apple.com/app/id6834950576' },
           { kind: 'testflight', url: 'https://testflight.apple.com/join/tr4eD534' } ] },
         mac: { req: 'macOS 10.15 or later', get: [
           { kind: 'dmg', url: 'https://github.com/bradleycowdrey/cowdrey-pdf/releases/latest/download/Cowdrey.PDF.dmg' } ] },

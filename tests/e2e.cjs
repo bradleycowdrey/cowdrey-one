@@ -335,7 +335,8 @@ async function open(ctx, url, errors, name) {
     const { ctx, p } = await nativeApp('iphone-app', { ...devices['iPhone 15 Pro'] }, {});
     check((await p.$$('#all-apps use[href="#i-android"]')).length === 0, 'the iPhone app doesn’t show Android');
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
-    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get All (4)', 'Get All covers the four apps on the App Store');
+    const onStore = C.apps.filter((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore').length;
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === `Get All (${onStore})`, `Get All covers the ${onStore} apps on the App Store`);
     await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(1500);
     const ids = (await calls(p)).filter((x) => String(x).startsWith('store:')).map((x) => x.slice(6));
     const want = C.apps.map((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore' ? a.platforms.ios.get[0].url.match(/id(\d+)/)[1] : null).filter(Boolean);
@@ -372,7 +373,8 @@ async function open(ctx, url, errors, name) {
     await p.click('#all-apps [data-id="two-degrees"] [data-act="launch"]'); await p.waitForTimeout(200);
     check((await calls(p)).includes('open:twodegrees'), 'Open opens Two Degrees');
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
-    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get All (3)', 'Get All leaves out Two Degrees, which is already here');
+    const onStore2 = C.apps.filter((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore').length;
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === `Get All (${onStore2 - 1})`, 'Get All leaves out Two Degrees, which is already here');
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
     check((await p.textContent('#view-library .section-head h2')).trim() === 'On This iPhone', 'the Library lists Two Degrees as on this iPhone');
