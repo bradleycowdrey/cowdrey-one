@@ -105,7 +105,7 @@ npm ci && npx playwright install chromium && npm test
 | **Android** | `android-app.yml` builds an APK and App Bundle, signed with the upload key secrets. | Needs the keystore secrets. |
 
 The GitHub releases are public, and `hubDownloads` in `catalog.js` lists Cowdrey One’s own downloads for the Share
-screen: the public TestFlight link now; the APK once one is on a release; the `.dmg` once it’s signed and notarized.
+screen: the public TestFlight link and the latest release’s APK now; the `.dmg` once it’s signed and notarized.
 
 Secrets, as in the other repositories (Settings → Secrets and variables → Actions): `DEVELOPER_ID_P12`,
 `DEVELOPER_ID_P12_PASSWORD`, `CODESIGN_IDENTITY`, `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID`;
