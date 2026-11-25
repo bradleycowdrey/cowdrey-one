@@ -64,9 +64,15 @@
   const nativeCall = (method, args) => tauri('plugin:installer|native', { method, args: args || {} });
   // App Review turns down iPhone apps that point to other phone platforms, so the iPhone app leaves Android out.
   const SHOWN = NATIVE === 'ios' ? ORDER.filter((p) => p !== 'android') : ORDER;
+  // The Android app from Google Play (desktop/build.mjs with STORE=play adds store.js, which sets COWDREY_STORE).
+  // Google Play doesn't let an app install other apps or download APKs, so there every Android app comes from its
+  // own Google Play page, and Play keeps it up to date. The Android app from GitHub installs APKs, as before.
+  const PLAY = NATIVE === 'android' && window.COWDREY_STORE === 'play';
+  const playUrl = (a) => 'https://play.google.com/store/apps/details?id=' + encodeURIComponent(a.bundle);
+  const playHere = () => PLAY && plat() === 'android';
   // The ways to get an app that this device's app can carry out itself.
   const canNative = (o) => !!o && !!NATIVE && o.p === NATIVE &&
-    ((NATIVE === 'mac' && o.kind === 'dmg') || (NATIVE === 'android' && o.kind === 'apk') || (NATIVE === 'ios' && o.kind === 'appstore'));
+    ((NATIVE === 'mac' && o.kind === 'dmg') || (NATIVE === 'android' && !PLAY && o.kind === 'apk') || (NATIVE === 'ios' && o.kind === 'appstore'));
   const storeId = (url) => (String(url).match(/\/id(\d+)/) || [])[1];
   // Whether Cowdrey One can see if an app is on this device. The Mac and Android apps see every app they list. iOS
   // doesn't let one app see which others are installed: the iPhone app can only ask whether an app's own link (its
@@ -83,7 +89,9 @@
     play: { how: 'Google Play', btn: 'Get', toast: (n) => `Opening ${n} on Google Play.` },
     web: { how: 'In your browser', btn: 'Open', toast: (n) => `Opening ${n}.` },
   };
-  const options = (a, p) => (a.platforms[p] && a.platforms[p].get) || [];
+  // In the Google Play app, an app with an Android version is got from its Google Play page, never as an APK.
+  const options = (a, p) => (PLAY && p === 'android' && a.platforms.android && a.bundle
+    ? [{ kind: 'play', url: playUrl(a) }] : (a.platforms[p] && a.platforms[p].get) || []);
   function best(a, p = plat()) {
     const list = options(a, p);
     const o = (p === NATIVE && list.find((x) => canNative(Object.assign({ p }, x)))) || list[0];
@@ -112,8 +120,9 @@
     const inst = mine(a);
     if (o.kind === 'web') return { s: 'open', o, inst };
     if (inst && inst.k !== 'web') {
-      // The App Stores and TestFlight update their apps themselves; downloads (.dmg, APK) are shown here.
-      if ((inst.k === 'apk' || inst.k === 'dmg') && cmpV(latest(a), inst.v) > 0) return { s: 'update', o, inst };
+      // The App Stores and TestFlight update their apps themselves; downloads (.dmg, APK) are shown here. Not in the
+      // Google Play app, which leaves updates to Google Play.
+      if ((inst.k === 'dmg' || (inst.k === 'apk' && !PLAY)) && cmpV(latest(a), inst.v) > 0) return { s: 'update', o, inst };
       return { s: 'done', o, inst };
     }
     return { s: 'get', o, inst };
@@ -248,6 +257,8 @@
   // Android phone: every download at once. On an iPhone in a browser, the App Store takes one app at a time.
   function bulkPlan() {
     const p = plat();
+    // Google Play installs one app at a time, from its own page: the Google Play app has no Install All.
+    if (PLAY && p === 'android') return { kind: 'none', list: [] };
     if (NATIVE && p === NATIVE) {
       return { kind: 'native', label: NATIVE === 'ios' ? 'Get All' : 'Install All',
         list: APPS.filter((a) => { const s = state(a); return (s.s === 'get' || s.s === 'update') && canNative(s.o); }) };
@@ -403,7 +414,7 @@
     const { n, total } = c, r = 27, len = 2 * Math.PI * r;
     const left = total - n;
     return `<div class="ring" aria-hidden="true"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="${r}"/><circle class="bar" cx="32" cy="32" r="${r}" stroke-dasharray="${len.toFixed(1)}" stroke-dashoffset="${(len * (1 - n / total)).toFixed(1)}"/></svg><b>${n}/${total}</b></div>
-      <div class="main"><h3>${left ? `Get every app on ${esc(thisDevice())}` : `Every app is on ${esc(thisDevice())}`}</h3><p>${left ? `${left} free ${left === 1 ? 'app' : 'apps'} to go, one tap each.` : 'New versions show up in your Library.'}</p></div>
+      <div class="main"><h3>${left ? `Get every app on ${esc(thisDevice())}` : `Every app is on ${esc(thisDevice())}`}</h3><p>${left ? `${left} free ${left === 1 ? 'app' : 'apps'} to go, one tap each.` : playHere() ? 'Google Play keeps them up to date.' : 'New versions show up in your Library.'}</p></div>
       <button class="pill solid" data-act="setup">${left ? 'Get All' : 'See All'}</button>`;
   }
 
@@ -458,9 +469,10 @@
     // Android apps) the rest are "not yet" on it; elsewhere it can't tell, so they're just the other apps.
     const got = APPS.filter((a) => mine(a)), rest = APPS.filter((a) => !mine(a)), ups = updates(), c = tally();
     const viaLine = (a) => { const i = mine(a); return `${i.v ? `Version ${esc(i.v)} · ` : ''}${esc(KIND[i.k].how)}`; };
-    const seen = APPS.filter(sees);
+    const seen = APPS.filter(sees), viaPlay = playHere();
     const foot = c
-      ? `Cowdrey One sees which apps are installed on ${esc(thisDevice())}, and checks GitHub for new versions.`
+      ? viaPlay ? `Cowdrey One sees which apps are installed on ${esc(thisDevice())}. Google Play keeps them up to date.`
+        : `Cowdrey One sees which apps are installed on ${esc(thisDevice())}, and checks GitHub for new versions.`
       : NATIVE === 'ios' && plat() === 'ios'
         ? `iOS doesn’t let one app see which others are installed. Cowdrey One can tell only for ${seen.length ? esc(seen.map((a) => a.name).join(' and ')) : 'apps that open from a link'}; for the rest, Get opens the App Store, which shows Open when the app is already on ${esc(thisDevice())}. The App Store keeps every app up to date.`
         : `A browser can’t see which apps are installed, so Get always brings the newest version. The App Store keeps its apps up to date.`;
@@ -468,7 +480,8 @@
     $('#view-library').innerHTML = `
       ${brand()}<header class="large-head"><div><p class="eyebrow">On ${esc(thisDevice())}</p><h1 class="large-title" id="t-library">Library</h1></div></header>
       ${c ? `<div class="reading"><span class="big">${c.n}</span><span class="of">of ${c.total} apps</span></div>
-      <p class="reading-sub">${ups.length ? `${ups.length} ${ups.length === 1 ? 'update' : 'updates'} available` : c.n ? 'Up to date' : 'None installed yet'} · ${checkedLine()}</p>` : ''}
+      <p class="reading-sub">${viaPlay ? (c.n ? 'Google Play keeps them up to date' : 'None installed yet')
+        : `${ups.length ? `${ups.length} ${ups.length === 1 ? 'update' : 'updates'} available` : c.n ? 'Up to date' : 'None installed yet'} · ${checkedLine()}`}</p>` : ''}
       ${ups.length ? `<div class="section-head"><h2>Updates</h2>${ups.length > 1 ? '<button data-act="update-all">Update All</button>' : ''}</div>
         <div class="group">${ups.map((a) => {
           const r = releases[a.id];
@@ -477,14 +490,14 @@
       ${got.length ? `<div class="section-head"><h2>On ${esc(capital(thisDevice()))}</h2></div>
         <div class="group">${got.map((a) => appRow(a, { sub: viaLine(a), plats: false })).join('')}</div>`
         : c ? `<div class="empty"><div class="stack">${APPS.slice(0, 3).map((a) => appIcon(a)).join('')}</div><h3>No apps on ${esc(thisDevice())} yet</h3>
-          <p>Apps you install show up here, with a note when a new version is out.</p><button class="button" data-act="setup">${icon('down')}Get Every App</button></div>` : ''}
+          <p>${viaPlay ? 'Apps you install from Google Play show up here.' : 'Apps you install show up here, with a note when a new version is out.'}</p><button class="button" data-act="setup">${icon('down')}Get Every App</button></div>` : ''}
       ${rest.length ? `<div class="section-head"><h2>${c ? `Not Yet on ${esc(deviceName())}` : got.length ? 'More Apps' : 'Every App'}</h2></div><div class="group">${rest.map((a) => appRow(a)).join('')}</div>` : ''}
       <p class="group-label">Settings</p>
       <div class="group">
         <div class="row pref"><span class="glyph">${icon('device')}</span><span class="main"><span class="title" style="font-weight:400">Show downloads for</span></span><span class="value">${esc(prefs.platform === 'auto' ? 'Automatic' : PLAT[prefs.platform].name)}</span>${icon('chevron', 'chev')}${platSelect}</div>
         <div class="row pref"><span class="glyph" style="background:#5B5FC7">${icon('moon')}</span><span class="main"><span class="title" style="font-weight:400">Appearance</span></span>
           <span class="segmented" role="group" aria-label="Appearance">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, t]) => `<button data-act="appearance" data-v="${v}" aria-pressed="${prefs.appearance === v}">${t}</button>`).join('')}</span></div>
-        <div class="row pref"><span class="glyph" style="background:#2E8B57">${icon('refresh')}</span><span class="main"><span class="title" style="font-weight:400">Updates</span><span class="sub">${checkedLine()}</span></span><button class="pill" data-act="check" ${checking ? 'disabled' : ''}>Check</button></div>
+        ${PLAY ? '' : `<div class="row pref"><span class="glyph" style="background:#2E8B57">${icon('refresh')}</span><span class="main"><span class="title" style="font-weight:400">Updates</span><span class="sub">${checkedLine()}</span></span><button class="pill" data-act="check" ${checking ? 'disabled' : ''}>Check</button></div>`}
         <button class="row pref tap" data-act="about"><span class="glyph" style="background:#6B6760">${icon('info')}</span><span class="main"><span class="title" style="font-weight:400">About Cowdrey One</span></span><span class="value">${VERSION}</span>${icon('chevron', 'chev')}</button>
       </div>
       <p class="group-foot">${foot}</p>
@@ -507,7 +520,8 @@
       ios: { t: 'iPhone and iPad', s: ['Open this page in Safari.', 'Tap Share (the square with an arrow), then Add to Home Screen.', 'Tap Add. Cowdrey One opens full screen, like any app.'],
         extra: C.hubDownloads.ios ? `<a class="link-button" href="${esc(C.hubDownloads.ios)}" target="_blank" rel="noopener">Or get the iPhone app</a>` : '' },
       android: { t: 'Android', s: ['Open this page in Chrome.', 'Tap ⋮, then Install app (or Add to Home screen).', 'Tap Install. It opens like any other app.'],
-        extra: C.hubDownloads.android ? `<a class="link-button" href="${esc(C.hubDownloads.android)}">Or download the Android app</a>` : '' },
+        extra: PLAY ? (C.hubDownloads.play ? `<a class="link-button" href="${esc(C.hubDownloads.play)}" target="_blank" rel="noopener" data-act="ext">Or get the Android app on Google Play</a>` : '')
+          : C.hubDownloads.android ? `<a class="link-button" href="${esc(C.hubDownloads.android)}">Or download the Android app</a>` : '' },
       mac: { t: 'Mac', s: ['In Safari, choose File › Add to Dock. In Chrome, click Install in the address bar.', 'Cowdrey One opens in its own window, with an icon in the Dock.'],
         extra: C.hubDownloads.mac ? `<a class="link-button" href="${esc(C.hubDownloads.mac)}">Or download the Mac app</a>` : '' },
       web: { t: 'Windows and other computers', s: ['In Chrome or Edge, click Install in the address bar.', 'Cowdrey One opens in its own window.'] },
@@ -568,10 +582,12 @@
         if (a.soon && a.soon[p]) rows.push(`<div class="row get-row"><span class="glyph">${icon(PLAT[p].icon)}</span><span class="main"><span class="title">${PLAT[p].name}</span><span class="sub">${esc(a.soon[p])}</span></span></div>`);
         continue;
       }
-      pl.get.forEach((o, i) => {
+      options(a, p).forEach((o, i) => {
         const here = p === plat() && i === 0;
-        // Open only where Cowdrey One has seen the app on this device, got this way.
-        const seenHere = p === plat() && mine(a) && (mine(a).k === o.kind || (mine(a).k === 'play' && o.kind === 'apk'));
+        // Open only where Cowdrey One has seen the app on this device, got this way. On Android, a copy from Google
+        // Play and one from an APK are the same app.
+        const k = mine(a) && mine(a).k;
+        const seenHere = p === plat() && !!k && (k === o.kind || (k === 'play' && o.kind === 'apk') || (k === 'apk' && o.kind === 'play'));
         const btn = seenHere
           ? `<button class="pill" data-act="launch" data-id="${a.id}" aria-label="Open ${esc(a.name)}, on ${esc(thisDevice())}">Open</button>`
           : `<a class="pill${here ? ' solid' : ''}" data-act="get-opt" data-id="${a.id}" data-p="${p}" data-i="${i}" href="${esc(o.url)}"${linkTarget(o)}>${KIND[o.kind].btn}</a>`;
@@ -659,7 +675,8 @@
         <p class="group-foot">${esc(bulkTip)}</p>` : '';
     const tip = {
       ios: NATIVE === 'ios' ? 'Tap Get All, or Get on any app.' : 'Each one opens the App Store: tap Get there, then come back here for the next.',
-      android: NATIVE === 'android' ? 'Tap Install All, or Get on any app.' : 'Each one downloads an APK. The first time, Android asks you to allow your browser to install apps: allow it, then tap Install for each.',
+      android: PLAY ? 'Each one opens its Google Play page: tap Install there, then come back here for the next.'
+        : NATIVE === 'android' ? 'Tap Install All, or Get on any app.' : 'Each one downloads an APK. The first time, Android asks you to allow your browser to install apps: allow it, then tap Install for each.',
       mac: NATIVE === 'mac' ? 'Tap Install All, or Get on any app.' : 'Each one downloads a .dmg to Downloads. Open it and drag the app into Applications.',
       web: 'Each one opens in a new tab. On a phone, add each to your Home Screen.',
     }[p];
@@ -668,7 +685,7 @@
         ${c ? `<div class="reading" style="margin-top:18px"><span class="big" style="font-size:48px">${c.n}</span><span class="of" style="font-size:20px">of ${c.total} installed</span></div>` : ''}
         ${bulk}
         <div class="group" id="setup-rows" style="margin-top:18px">${APPS.map((a) => appRow(a, { plats: false })).join('')}</div>
-        <p class="group-foot">Not on ${esc(PLAT[p].name)}? Apps without a ${esc(PLAT[p].name)} version open on the web instead.</p>
+        <p class="group-foot">Not on ${esc(PLAT[p].name)}? Apps without ${/^[aeiou]/i.test(PLAT[p].name) ? 'an' : 'a'} ${esc(PLAT[p].name)} version open on the web instead.</p>
         <p style="margin-top:22px"><button class="button wide" data-act="close">Done</button></p></div>`;
   }
 

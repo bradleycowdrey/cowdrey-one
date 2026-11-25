@@ -1,5 +1,9 @@
 name: Android app
 
+# Two builds of the same app (com.bradcowdrey.cowdreyone), from the same code:
+# - the APK for GitHub (and bradcowdrey.com), which installs and updates every app itself (Install All);
+# - the Google Play version, an App Bundle (STORE=play): each app comes from its own Google Play page, and it has no
+#   permission to install apps (Play doesn't allow it). Runs started by hand on main send it to Play's closed test.
 on:
   push:
     branches: [main]
@@ -26,13 +30,23 @@ jobs:
       # The upload key, under the same secret names as Bearings: ANDROID_KEYSTORE_B64 (the .jks or .keystore as
       # base64), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (the key's own password; the
       # keystore's when not set). ANDROID_KEYSTORE also works for the keystore. Without them the APK is signed with a
-      # throwaway key: fine for trying it, but each build then needs the last one uninstalled first.
+      # throwaway key: fine for trying it, but each build then needs the last one uninstalled first. The Google Play
+      # App Bundle is signed with the same upload key, and without it isn't signed or sent to Play.
       KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 || secrets.ANDROID_KEYSTORE }}
       KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+      # The Google Cloud service account that sends builds to Google Play (docs/play/README.md).
+      HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
+
+      # Google Play takes a build only with a higher version code than the last, and Tauri's code comes from the version
+      # number (1.0.0 is 1000000), which stays the same from build to build. So the Google Play version's code is
+      # 100000000 plus this workflow's run number, which goes up with every run. The APK keeps Tauri's code, below
+      # every Play code until version 100.
+      - name: Version code for Google Play
+        run: echo "PLAY_VERSION_CODE=$((100000000 + GITHUB_RUN_NUMBER))" | tee -a "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:
@@ -73,20 +87,22 @@ jobs:
           npx tauri android init --ci 2>&1 | tee -a "$RUNNER_TEMP/android-build.log"
           # The glyph sits inside the adaptive-icon safe zone, so round and squircle launchers don't crop it.
           npx tauri icon src-tauri/icons/android-source.png 2>&1 | tail -3 | tee -a "$RUNNER_TEMP/android-build.log"
+          # Google Play needs new apps to target Android 16 (API 36) or later. The Tauri CLI (2.12.1) writes 37 into
+          # app/build.gradle.kts; "Check the Google Play version" stops the build if the bundle's target is lower.
+          grep -E '^\s*(compileSdk|targetSdk|minSdk) = ' src-tauri/gen/android/app/build.gradle.kts | tee -a "$RUNNER_TEMP/android-build.log"
 
-      - name: Build the APK and App Bundle
+      - name: Build the APK
         working-directory: desktop
         run: |
           set -o pipefail
-          npx tauri android build --apk --aab --ci --target aarch64 --target armv7 --target x86_64 2>&1 | tee -a "$RUNNER_TEMP/android-build.log"
+          npx tauri android build --apk --ci --target aarch64 --target armv7 --target x86_64 2>&1 | tee -a "$RUNNER_TEMP/android-build.log"
 
       - name: Sign the APK
         run: |
           set -eo pipefail
           BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
           UNSIGNED=$(find desktop/src-tauri/gen/android/app/build/outputs/apk -name '*release-unsigned.apk' | head -1)
-          AAB=$(find desktop/src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
-          echo "APK: $UNSIGNED · AAB: $AAB" | tee -a "$RUNNER_TEMP/android-build.log"
+          echo "APK: $UNSIGNED" | tee -a "$RUNNER_TEMP/android-build.log"
           if [[ -n "$KEYSTORE" ]]; then
             echo "$KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/upload.jks"; PASS="$KEYSTORE_PASSWORD"; KEYPASS="$KEY_PASSWORD"; ALIAS="$KEY_ALIAS"; SIGNED_BY="upload key"
           else
@@ -97,11 +113,10 @@ jobs:
           "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
           "$BT/apksigner" sign --ks "$RUNNER_TEMP/upload.jks" --ks-pass "pass:$PASS" --key-pass "pass:$KEYPASS" --ks-key-alias "$ALIAS" --out "$RUNNER_TEMP/CowdreyOne.apk" "$RUNNER_TEMP/aligned.apk"
           "$BT/apksigner" verify "$RUNNER_TEMP/CowdreyOne.apk" && echo "APK signed with the $SIGNED_BY" | tee -a "$RUNNER_TEMP/android-build.log"
-          if [[ -n "$KEYSTORE" ]]; then
-            cp "$AAB" "$RUNNER_TEMP/CowdreyOne.aab"
-            jarsigner -keystore "$RUNNER_TEMP/upload.jks" -storepass "$PASS" -keypass "$KEYPASS" "$RUNNER_TEMP/CowdreyOne.aab" "$ALIAS" > /dev/null && echo "App Bundle signed for Google Play" | tee -a "$RUNNER_TEMP/android-build.log"
-          fi
           rm -f "$RUNNER_TEMP/upload.jks"
+          # What Android sees: the version code, target API level and permissions. The APK installs apps itself.
+          "$BT/aapt2" dump badging "$RUNNER_TEMP/CowdreyOne.apk" | grep -E "^(package|sdkVersion|targetSdkVersion|uses-permission):" | tee -a "$RUNNER_TEMP/android-build.log"
+          "$BT/aapt2" dump badging "$RUNNER_TEMP/CowdreyOne.apk" | grep -q "uses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'"
 
       # With the upload key, the APK goes on the version's public GitHub release (catalog.js, hubDownloads.android).
       # The Mac workflow creates that release; wait for it, and create it only if it never appears.
@@ -115,12 +130,102 @@ jobs:
           gh release view "v$V" > /dev/null 2>&1 || gh release create "v$V" --title "Cowdrey One v$V" --notes "Cowdrey One $V by Bradley Cowdrey (https://bradcowdrey.com)."
           gh release upload "v$V" "$RUNNER_TEMP/CowdreyOne.apk" --clobber
 
+      # The Google Play version: the web app marked as the Play build (desktop/build.mjs writes store.js), and the
+      # manifest without REQUEST_INSTALL_PACKAGES, which the installer plugin's manifest brings in for the APK.
+      - name: Build the Google Play version (App Bundle)
+        working-directory: desktop
+        run: |
+          set -eo pipefail
+          STORE=play node build.mjs | tee -a "$RUNNER_TEMP/android-build.log"
+          python3 - src-tauri/gen/android/app/src/main/AndroidManifest.xml <<'EOF'
+          import re, sys
+          path = sys.argv[1]
+          text = open(path, encoding='utf-8').read()
+          tag = re.search(r'<manifest\b[^>]*>', text)
+          head = tag.group(0)
+          if 'xmlns:tools=' not in head:
+              head = head[:-1] + ' xmlns:tools="http://schemas.android.com/tools">'
+          remove = ('\n    <!-- Google Play version: Play doesn\'t allow an app to install other apps. -->\n'
+                    '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />')
+          text = text[:tag.start()] + head + remove + text[tag.end():]
+          open(path, 'w', encoding='utf-8').write(text)
+          print(f'{path}: REQUEST_INSTALL_PACKAGES removed for Google Play')
+          EOF
+          touch "$RUNNER_TEMP/play-build-start"
+          npx tauri android build --aab --ci --target aarch64 --target armv7 --target x86_64 \
+            --config "{\"bundle\":{\"android\":{\"versionCode\":$PLAY_VERSION_CODE}}}" 2>&1 | tee -a "$RUNNER_TEMP/android-build.log"
+
+      - name: Check the Google Play version
+        run: |
+          set -eo pipefail
+          AAB=$(find desktop/src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' -newer "$RUNNER_TEMP/play-build-start" | head -1)
+          [[ -n "$AAB" ]] || { echo "::error::No App Bundle from the Google Play build"; exit 1; }
+          echo "AAB: $AAB" | tee -a "$RUNNER_TEMP/android-build.log"
+          echo "AAB=$AAB" >> "$GITHUB_ENV"
+          # Gradle's merged manifests from this build (the app's, with the installer plugin's merged in).
+          ALL=$(find desktop/src-tauri/gen/android/app/build/intermediates -name AndroidManifest.xml -newer "$RUNNER_TEMP/play-build-start")
+          MERGED=$(echo "$ALL" | grep -E '[Rr]elease' | grep -E 'merged_manifest|bundle_manifest|packaged_manifests' || true)
+          [[ -n "$MERGED" ]] || { echo "$ALL"; echo "::error::No merged manifest from the Google Play build"; exit 1; }
+          for m in $MERGED; do
+            echo "merged manifest: $m"
+            if grep -q 'REQUEST_INSTALL_PACKAGES' "$m"; then echo "::error::$m asks for REQUEST_INSTALL_PACKAGES"; exit 1; fi
+          done
+          # The bundle itself, as Google Play reads it.
+          curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle "$AAB" > "$RUNNER_TEMP/play-manifest.xml"
+          grep -E '<manifest|<uses-sdk|<uses-permission|<package ' "$RUNNER_TEMP/play-manifest.xml" | tee -a "$RUNNER_TEMP/android-build.log"
+          python3 - "$RUNNER_TEMP/play-manifest.xml" <<'EOF'
+          import os, sys
+          import xml.etree.ElementTree as ET
+          A = '{http://schemas.android.com/apk/res/android}'
+          root = ET.parse(sys.argv[1]).getroot()
+          code = root.get(A + 'versionCode')
+          target = int(root.find('uses-sdk').get(A + 'targetSdkVersion'))
+          perms = [p.get(A + 'name') for p in root.iter('uses-permission')]
+          problems = []
+          if root.get('package') != 'com.bradcowdrey.cowdreyone':
+              problems.append(f"package is {root.get('package')}")
+          if code != os.environ['PLAY_VERSION_CODE']:
+              problems.append(f"versionCode is {code}, not {os.environ['PLAY_VERSION_CODE']}")
+          if target < 36:
+              problems.append(f'targetSdkVersion is {target}; Google Play needs 36 or later')
+          if 'android.permission.REQUEST_INSTALL_PACKAGES' in perms:
+              problems.append('it asks for REQUEST_INSTALL_PACKAGES')
+          print(f'Google Play App Bundle: version code {code}, targetSdkVersion {target}, permissions: {", ".join(perms)}')
+          for p in problems:
+              print(f'::error::Google Play App Bundle: {p}')
+          sys.exit(1 if problems else 0)
+          EOF
+
+      - name: Sign the Google Play App Bundle
+        if: env.KEYSTORE != ''
+        run: |
+          set -eo pipefail
+          echo "$KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/upload.jks"
+          cp "$AAB" "$RUNNER_TEMP/CowdreyOne-GooglePlay.aab"
+          jarsigner -keystore "$RUNNER_TEMP/upload.jks" -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" "$RUNNER_TEMP/CowdreyOne-GooglePlay.aab" "$KEY_ALIAS" > /dev/null
+          rm -f "$RUNNER_TEMP/upload.jks"
+          jarsigner -verify "$RUNNER_TEMP/CowdreyOne-GooglePlay.aab" | grep -q 'jar verified' && echo "Google Play App Bundle signed with the upload key (version code $PLAY_VERSION_CODE)" | tee -a "$RUNNER_TEMP/android-build.log"
+
+      # Only runs started by hand on main go to testers; pushes build and check the bundle but never send it.
+      - name: Google Play closed test
+        if: env.HAS_PLAY == 'true' && env.KEYSTORE != '' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_PACKAGE: com.bradcowdrey.cowdreyone
+          PLAY_AAB: ${{ runner.temp }}/CowdreyOne-GooglePlay.aab
+          PLAY_RELEASE_NOTES: "Cowdrey One for Google Play: every app by Bradley Cowdrey in one place, each with its Google Play page, and which ones are on your phone."
+        run: |
+          export PLAY_RELEASE_NAME="$(node -p "require('./desktop/src-tauri/tauri.conf.json').version") ($PLAY_VERSION_CODE)"
+          pip install --quiet pyjwt cryptography
+          python3 .github/scripts/play_publish.py
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: CowdreyOne-Android
           path: |
             ${{ runner.temp }}/CowdreyOne.apk
-            ${{ runner.temp }}/CowdreyOne.aab
+            ${{ runner.temp }}/CowdreyOne-GooglePlay.aab
             ${{ runner.temp }}/android-build.log
           if-no-files-found: ignore

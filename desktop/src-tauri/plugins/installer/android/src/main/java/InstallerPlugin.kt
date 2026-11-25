@@ -3,7 +3,8 @@
 // - canInstall / openInstallSettings: Android's "Install unknown apps" permission for Cowdrey One.
 // - openApp: opens one of them.
 // - install: downloads an app's APK from its GitHub release and hands it to Android's package installer, which asks
-//   "Install?" once. Apps Cowdrey One installed update without asking on Android 12 and later.
+//   "Install?" once. Apps Cowdrey One installed update without asking on Android 12 and later. Only in the APK from
+//   GitHub: the Google Play version has no permission to install apps, and refuses.
 package com.bradcowdrey.installer
 
 import android.app.Activity
@@ -102,9 +103,23 @@ class InstallerPlugin(private val activity: Activity) : Plugin(activity) {
         invoke.resolve()
     }
 
+    /** The Google Play version leaves REQUEST_INSTALL_PACKAGES out of its manifest: Play doesn't allow an app to
+     *  install others, so that version never downloads or installs an app. */
+    private fun mayInstall(): Boolean = try {
+        @Suppress("DEPRECATION")
+        val info = activity.packageManager.getPackageInfo(activity.packageName, PackageManager.GET_PERMISSIONS)
+        info.requestedPermissions?.contains(android.Manifest.permission.REQUEST_INSTALL_PACKAGES) == true
+    } catch (_: Exception) {
+        false
+    }
+
     @Command
     fun install(invoke: Invoke) {
         val args = invoke.parseArgs(InstallArgs::class.java)
+        if (!mayInstall()) {
+            invoke.reject("This version of Cowdrey One gets apps from Google Play")
+            return
+        }
         // Only Bradley Cowdrey's own releases, never an address from anywhere else.
         if (!args.url.startsWith("https://github.com/bradleycowdrey/")) {
             invoke.reject("That download isn't one of Bradley Cowdrey's apps")

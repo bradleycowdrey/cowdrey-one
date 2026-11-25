@@ -226,11 +226,13 @@ async function open(ctx, url, errors, name) {
       }
       return null;
     };
-    window.__TAURI__ = { core: { invoke: answer }, event: { listen: async () => () => {} }, opener: { openUrl: async () => {} } };
+    window.__TAURI__ = { core: { invoke: answer }, event: { listen: async () => () => {} }, opener: { openUrl: async (u) => { window.__calls.push('url:' + u); } } };
   }
-  async function nativeApp(name, opts, installedNow, installers) {
+  // store: 'play' is the Google Play version of the Android app (desktop/build.mjs, STORE=play, adds store.js).
+  async function nativeApp(name, opts, installedNow, installers, store) {
     const { ctx } = await context(browser, base, opts, current);
     await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
+    if (store) await ctx.addInitScript((s) => { window.COWDREY_STORE = s; }, store);
     await ctx.addInitScript(fakeNative, { installed: installedNow, installers });
     const p = await open(ctx, base, errors, name);
     await p.waitForTimeout(400);
@@ -280,6 +282,51 @@ async function open(ctx, url, errors, name) {
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
     check(/Google Play/.test(await p.textContent('#view-library')), 'the Library says it came from Google Play');
+    await ctx.close();
+  }
+
+  console.log('Android app from Google Play');
+  {
+    const play = (id) => 'https://play.google.com/store/apps/details?id=' + id;
+    const { ctx, p } = await nativeApp('android-google-play', { ...devices['Pixel 7'] },
+      { 'com.bradcowdrey.meridian': '2.1.4', 'com.bradcowdrey.twodegrees': '1.0.0' }, { 'com.bradcowdrey.meridian': 'com.android.vending' }, 'play');
+    const apkLinks = () => p.evaluate(() => [...document.querySelectorAll('[href]')].map((e) => e.getAttribute('href')).filter((h) => /\.apk(?:$|[?#])/i.test(h)));
+    check(await p.evaluate(() => window.CowdreyOne.native) === 'android', 'it knows it is the Android app');
+    const href = await p.getAttribute('#all-apps [data-id="bearings"] a.pill', 'href');
+    check(href === play('com.bradcowdrey.bearings') && (await p.textContent('#all-apps [data-id="bearings"] .pill')).trim() === 'Get', `an Android app’s Get goes to its Google Play page (${href})`);
+    await p.click('#all-apps [data-id="bearings"] a.pill'); await p.waitForTimeout(300);
+    check((await calls(p)).includes('url:' + play('com.bradcowdrey.bearings')), 'Get opens Bearings’ Google Play page with the system, which hands it to the Play Store');
+    check(/Google Play/.test(await p.textContent('.toast')), '… and says so');
+    check(!(await calls(p)).some((x) => x === 'install' || x === 'canInstall'), 'Cowdrey One never downloads or installs an app itself');
+    check(!(await p.$('.sheet')), 'no “Allow Cowdrey One to install apps” sheet');
+    check(await p.evaluate(() => window.CowdreyOne.state('bearings').s) === 'get', 'opening Google Play doesn’t mark Bearings as installed');
+    check((await p.textContent('#all-apps [data-id="meridian"] .pill')).trim() === 'Open', 'Meridian, installed from Google Play, shows Open');
+    check(await p.evaluate(() => window.CowdreyOne.state('two-degrees').s) === 'done' && (await p.textContent('#all-apps [data-id="two-degrees"] .pill')).trim() === 'Open', 'an older Two Degrees shows Open, not Update: Google Play keeps apps up to date');
+    check(await p.isHidden('.tab .badge'), '… so there’s no update badge');
+    await p.click('#all-apps [data-id="meridian"] [data-act="launch"]'); await p.waitForTimeout(200);
+    check((await calls(p)).includes('open:com.bradcowdrey.meridian'), 'Open opens Meridian');
+    check((await p.textContent('#setup-slot .ring b')).trim() === '2/4', 'the ring counts the Android apps on the phone (2 of 4)');
+    const pdf = await p.getAttribute('#all-apps [data-id="cowdrey-pdf"] a.pill', 'href');
+    check(pdf === C.apps.find((a) => a.id === 'cowdrey-pdf').platforms.web.get[0].url && (await p.textContent('#all-apps [data-id="cowdrey-pdf"] .pill')).trim() === 'Open', 'an app without an Android version falls back to the web');
+    await p.click('#all-apps [data-id="cowdrey-pdf"] a.pill'); await p.waitForTimeout(200);
+    check((await calls(p)).includes('url:' + pdf), '… and Open opens its web version');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check(!(await p.$('.sheet [data-act="bulk"]')) && !/Install All/.test(await p.textContent('.sheet')), 'Get Every App has no Install All');
+    const gets = await p.$$eval('.sheet #setup-rows a.pill', (els) => els.map((e) => e.getAttribute('href')));
+    check(['cowdrey-md', 'bearings'].every((id) => gets.includes(play(C.apps.find((a) => a.id === id).bundle))), '… just Get on each app, to its Google Play page');
+    check(/Google Play/.test(await p.textContent('.sheet .sheet-lead')), '… and says how Google Play works');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('#all-apps [data-id="bearings"] .main'); await p.waitForTimeout(600);
+    const row = await p.textContent('.sheet .get-row.here');
+    check(/Google Play/.test(row) && (await p.getAttribute('.sheet .get-row.here a.pill', 'href')) === play('com.bradcowdrey.bearings'), 'the app’s page offers Android from Google Play');
+    check((await p.$$('.sheet .hero .shots img')).length === C.apps.find((a) => a.id === 'bearings').shots, '… with its App Store screenshots in a row');
+    check((await apkLinks()).length === 0, '… and no APK');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
+    check(/Google Play keeps them up to date/.test(await p.textContent('#view-library')) && !(await p.$('#view-library [data-act="check"]')), 'the Library leaves updates to Google Play');
+    await p.click('.tab[data-tab="share"]'); await p.waitForTimeout(300);
+    check(!!(await p.$(`#view-share a[href="${C.hubDownloads.play}"]`)), 'Share offers Cowdrey One on Google Play, not its APK');
+    check((await apkLinks()).length === 0 && !/Install All|Download All/.test(await p.textContent('body')), 'no link to an APK anywhere, and no Install All');
     await ctx.close();
   }
 

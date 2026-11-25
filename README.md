@@ -102,10 +102,12 @@ npm ci && npx playwright install chromium && npm test
 | **Web, and installed from the browser** | `pages.yml` publishes `web/` to https://bradleycowdrey.github.io/cowdrey-one/ (the QR code’s address, `hubUrl` in `catalog.js`). From there it installs like an app: Safari’s Share → Add to Home Screen on iPhone and iPad, Install app on Android, File → Add to Dock on the Mac. | Works once Pages publishes from Actions: Settings → Pages → Source: **GitHub Actions** (the workflow’s own token can’t turn Pages on). |
 | **Mac** | `mac-app.yml` builds a universal `.dmg`, signed and notarized with the same six Developer ID secrets as the other apps. | Needs the secrets added to this repository. |
 | **iPhone and iPad** | `ios-app.yml` builds, signs and uploads to TestFlight with the App Store Connect API key, as for Cowdrey.PDF; it registers the bundle ID `com.bradcowdrey.cowdreyone` if needed. Then `testflight-public.yml` adds the build to the “Public” tester group, sends it to beta App Review and prints the public TestFlight link. | Needs the key secrets, and an App Store Connect app record (Apps, +, New App: Cowdrey One, bundle ID `com.bradcowdrey.cowdreyone`, SKU `cowdrey-one`). Listing and review notes: `docs/app-store/listing.json`. |
-| **Android** | `android-app.yml` builds an APK and App Bundle, signed with the upload key secrets. | Needs the keystore secrets. |
+| **Android** | `android-app.yml` builds the APK, signed with the upload key secrets, for the GitHub release. | Needs the keystore secrets. |
+| **Google Play** | The same workflow builds the Google Play version as an App Bundle (`STORE=play`): each app comes from its Google Play page, with no APKs and no Install All. Runs started by hand on `main` send it to the closed test; `play-listing.yml` sends the store listing in `docs/play`. | Closed test, coming soon. Needs `PLAY_SERVICE_ACCOUNT_JSON` and the keystore secrets; Play Console steps and App content answers in [docs/play/README.md](docs/play/README.md). |
 
 The GitHub releases are public, and `hubDownloads` in `catalog.js` lists Cowdrey One’s own downloads for the Share
-screen: the public TestFlight link and the latest release’s APK now; the `.dmg` once it’s signed and notarized.
+screen: the public TestFlight link and the latest release’s APK now (in the Google Play version, its Play page
+instead of the APK); the `.dmg` once it’s signed and notarized.
 
 Secrets, as in the other repositories (Settings → Secrets and variables → Actions): `DEVELOPER_ID_P12`,
 `DEVELOPER_ID_P12_PASSWORD`, `CODESIGN_IDENTITY`, `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID`;
@@ -122,6 +124,7 @@ differs from the keystore's.
   functionality). The web app, installed from Safari, needs no review. The iPhone app leaves Android out of its
   screens, as App Review asks.
 - **Google Play:** Play doesn’t allow an app to install other apps, so the Android app with Install All is for
-  direct download (an APK), like the other apps’ Android versions. A Play version would link to each app’s Play page.
+  direct download (an APK), like the other apps’ Android versions. The Google Play version, a separate build of
+  the same app, links to each app’s Play page instead ([docs/play/README.md](docs/play/README.md)).
 - **Version:** one number in `desktop/src-tauri/tauri.conf.json`, `Cargo.toml`, `desktop/package.json` and
   `VERSION` in `web/app.js` (the build stops if they differ), with an entry in [CHANGELOG.md](CHANGELOG.md).

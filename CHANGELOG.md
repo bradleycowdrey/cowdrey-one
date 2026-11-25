@@ -22,3 +22,6 @@ every app it lists.
 - **Only what’s really installed:** an app shows as installed (with Open) only when Cowdrey One sees it on the
   device, never because Get was tapped. The iPhone app sees apps with their own link, such as Two Degrees.
 - Light and dark, a floating tab bar on phones with Cowdrey One at the top, and a sidebar on the Mac.
+- **On Google Play:** a version of the Android app for Google Play, where each app comes from its own Google
+  Play page and Google Play keeps it up to date. It still sees which apps are on the phone, with Open; it never
+  downloads an APK or installs an app itself, so it has no Install All. The APK on GitHub is unchanged.

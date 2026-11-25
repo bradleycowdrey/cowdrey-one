@@ -10,7 +10,9 @@
    - status: optional label on the card, e.g. "New" or "Preview".
    - bundle and macApp: how the Mac and Android apps of Cowdrey One find the app on the device (its Android package
      and Mac bundle ID, and its name in Applications). A new Android app also goes in the <queries> list of
-     desktop/src-tauri/plugins/installer/android/src/main/AndroidManifest.xml.
+     desktop/src-tauri/plugins/installer/android/src/main/AndroidManifest.xml. The Google Play version of the
+     Android app offers each Android app's Google Play page (play.google.com/store/apps/details?id=<bundle>)
+     instead of its APK.
    The apps appear in this order everywhere: keep it the same as the software section of bradcowdrey.com. */
 window.CATALOG = {
   // Where Cowdrey One lives on the web: the QR code and Share link go here. pages.yml publishes web/ to it.
@@ -19,7 +21,9 @@ window.CATALOG = {
   hubRepo: 'bradleycowdrey/cowdrey-one',
   // Where to get Cowdrey One itself; the Share screen offers these. Its GitHub releases are public, but a Mac .dmg
   // is only linked here once it's signed and notarized (Developer ID secrets). The APK is signed with the upload key.
-  hubDownloads: { ios: 'https://testflight.apple.com/join/vsv37k36', android: 'https://github.com/bradleycowdrey/cowdrey-one/releases/latest/download/CowdreyOne.apk', mac: '' },
+  // play: Cowdrey One's Google Play page, which the Google Play version's Share screen offers instead of the APK.
+  hubDownloads: { ios: 'https://testflight.apple.com/join/vsv37k36', android: 'https://github.com/bradleycowdrey/cowdrey-one/releases/latest/download/CowdreyOne.apk', mac: '',
+    play: 'https://play.google.com/store/apps/details?id=com.bradcowdrey.cowdreyone' },
   termsUrl: 'https://bradcowdrey.com/legal',
   termsVersion: '2026-11',
   developer: { name: 'Bradley Cowdrey', url: 'https://bradcowdrey.com', github: 'https://github.com/bradleycowdrey' },
