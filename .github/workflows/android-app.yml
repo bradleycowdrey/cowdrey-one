@@ -114,9 +114,14 @@ jobs:
           "$BT/apksigner" sign --ks "$RUNNER_TEMP/upload.jks" --ks-pass "pass:$PASS" --key-pass "pass:$KEYPASS" --ks-key-alias "$ALIAS" --out "$RUNNER_TEMP/CowdreyOne.apk" "$RUNNER_TEMP/aligned.apk"
           "$BT/apksigner" verify "$RUNNER_TEMP/CowdreyOne.apk" && echo "APK signed with the $SIGNED_BY" | tee -a "$RUNNER_TEMP/android-build.log"
           rm -f "$RUNNER_TEMP/upload.jks"
-          # What Android sees: the version code, target API level and permissions. The APK installs apps itself.
-          "$BT/aapt2" dump badging "$RUNNER_TEMP/CowdreyOne.apk" | grep -E "^(package|sdkVersion|targetSdkVersion|uses-permission):" | tee -a "$RUNNER_TEMP/android-build.log"
-          "$BT/aapt2" dump badging "$RUNNER_TEMP/CowdreyOne.apk" | grep -q "uses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'"
+          # What Android sees: the version code, target API level and permissions. The APK installs apps itself, and
+          # carries the web app as it is in web/ (no store.js, which only the Google Play version has).
+          "$BT/aapt2" dump badging "$RUNNER_TEMP/CowdreyOne.apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -E "^(package|sdkVersion|targetSdkVersion|uses-permission):" "$RUNNER_TEMP/apk-badging.txt" | tee -a "$RUNNER_TEMP/android-build.log"
+          grep -q "uses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'" "$RUNNER_TEMP/apk-badging.txt"
+          unzip -p "$RUNNER_TEMP/CowdreyOne.apk" lib/arm64-v8a/libcowdrey_one_lib.so > "$RUNNER_TEMP/apk-lib.so"
+          [[ -s "$RUNNER_TEMP/apk-lib.so" ]] && ! grep -a -q '/store.js' "$RUNNER_TEMP/apk-lib.so" || { echo "::error::The APK carries store.js, or its library is missing"; exit 1; }
+          rm -f "$RUNNER_TEMP/apk-lib.so"
 
       # With the upload key, the APK goes on the version's public GitHub release (catalog.js, hubDownloads.android).
       # The Mac workflow creates that release; wait for it, and create it only if it never appears.
@@ -170,6 +175,11 @@ jobs:
             echo "merged manifest: $m"
             if grep -q 'REQUEST_INSTALL_PACKAGES' "$m"; then echo "::error::$m asks for REQUEST_INSTALL_PACKAGES"; exit 1; fi
           done
+          # The app's files are built into its library: the Google Play version's must include store.js.
+          unzip -p "$AAB" base/lib/arm64-v8a/libcowdrey_one_lib.so > "$RUNNER_TEMP/play-lib.so"
+          grep -a -q '/store.js' "$RUNNER_TEMP/play-lib.so" || { echo "::error::The Google Play bundle doesn't carry store.js"; exit 1; }
+          echo "The Google Play bundle carries store.js (window.COWDREY_STORE = 'play')" | tee -a "$RUNNER_TEMP/android-build.log"
+          rm -f "$RUNNER_TEMP/play-lib.so"
           # The bundle itself, as Google Play reads it.
           curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
           java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle "$AAB" > "$RUNNER_TEMP/play-manifest.xml"

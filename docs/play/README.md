@@ -31,8 +31,8 @@ other apps or download APKs, so:
 ## Builds and uploads
 
 - **Android app** (`.github/workflows/android-app.yml`) builds both: the APK for the GitHub release, then the Google
-  Play App Bundle, checks the bundle (package, version code, target API, no install permission) and signs it with
-  the upload key. Every run keeps `CowdreyOne-GooglePlay.aab` in the run's artifact **CowdreyOne-Android**.
+  Play App Bundle, checks the bundle (package, version code, target API, no install permission, and that it carries
+  `store.js` while the APK doesn't) and signs it with the upload key. Every run keeps `CowdreyOne-GooglePlay.aab` in the run's artifact **CowdreyOne-Android**.
 - **Only runs started by hand on `main` go to the closed test:** Actions → Android app → Run workflow. Pushes build
   and check the bundle but never send it.
 - **Google Play listing** (`.github/workflows/play-listing.yml`) sends the text and pictures here when they change on
