@@ -1,9 +1,8 @@
 name: Web app (GitHub Pages)
 
 # Publishes web/ at https://bradleycowdrey.github.io/cowdrey-one/ on every push to main: the address the QR code
-# and Share link use (catalog.js, hubUrl). The site is public even though this repository is private; GitHub Pages
-# for a private repository needs a paid GitHub plan. If the deploy step fails for that reason, either turn Pages on
-# under Settings, Pages, or host web/ elsewhere (for example bradcowdrey.com/one) and change hubUrl.
+# and Share link use (catalog.js, hubUrl). Pages must be set to publish from GitHub Actions once (Settings, Pages,
+# Source: GitHub Actions): the workflow's own token can't turn Pages on.
 on:
   push:
     branches: [main]
@@ -23,9 +22,6 @@ concurrency:
 
 jobs:
   deploy:
-    # Off until Pages can be turned on for this repository: then add a repository variable PAGES_ENABLED = true
-    # (Settings, Secrets and variables, Actions, Variables), and this publishes on the next push.
-    if: vars.PAGES_ENABLED == 'true'
     runs-on: ubuntu-24.04
     environment:
       name: github-pages

@@ -16,9 +16,8 @@ Made by <a href="https://bradcowdrey.com">Bradley Cowdrey · bradcowdrey.com</a>
 
 ---
 
-**Not open source.** © 2026 Bradley Cowdrey. All rights reserved. This repository is private; see [LICENSE](LICENSE).
-The apps it lists (Bearings, Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF, Golden Hour) are open source under
-the MIT License in their own repositories.
+**Free and open source** under the [MIT License](LICENSE), © 2026 Bradley Cowdrey, like every app it lists (Bearings,
+Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF and Golden Hour), each in its own repository.
 
 ## What it does
 
@@ -100,14 +99,13 @@ npm ci && npx playwright install chromium && npm test
 
 | | How | Status |
 |---|---|---|
-| **Web, and installed from the browser** | `pages.yml` publishes `web/` to https://bradleycowdrey.github.io/cowdrey-one/ (the QR code’s address, `hubUrl` in `catalog.js`). From there it installs like an app: Safari’s Share → Add to Home Screen on iPhone and iPad, Install app on Android, File → Add to Dock on the Mac. | Works as soon as Pages is on. GitHub Pages for a **private** repository needs a paid GitHub plan; otherwise host `web/` elsewhere (bradcowdrey.com/one would suit) and change `hubUrl`. |
+| **Web, and installed from the browser** | `pages.yml` publishes `web/` to https://bradleycowdrey.github.io/cowdrey-one/ (the QR code’s address, `hubUrl` in `catalog.js`). From there it installs like an app: Safari’s Share → Add to Home Screen on iPhone and iPad, Install app on Android, File → Add to Dock on the Mac. | Works once Pages publishes from Actions: Settings → Pages → Source: **GitHub Actions** (the workflow’s own token can’t turn Pages on). |
 | **Mac** | `mac-app.yml` builds a universal `.dmg`, signed and notarized with the same six Developer ID secrets as the other apps. | Needs the secrets added to this repository. |
 | **iPhone and iPad** | `ios-app.yml` builds, signs and uploads to TestFlight with the App Store Connect API key, as for Cowdrey.PDF; it registers the bundle ID `com.bradcowdrey.cowdreyone` if needed. Then `testflight-public.yml` adds the build to the “Public” tester group, sends it to beta App Review and prints the public TestFlight link. | Needs the key secrets, and an App Store Connect app record (Apps, +, New App: Cowdrey One, bundle ID `com.bradcowdrey.cowdreyone`, SKU `cowdrey-one`). Listing and review notes: `docs/app-store/listing.json`. |
 | **Android** | `android-app.yml` builds an APK and App Bundle, signed with the upload key secrets. | Needs the keystore secrets. |
 
-This repository is private, so its GitHub release files can’t be downloaded by the public. Once a Mac, Android or
-iPhone build has a public home (the App Store, TestFlight’s public link, or a public download), put its link in
-`hubDownloads` in `catalog.js` and the Share screen offers it.
+The GitHub releases are public, and `hubDownloads` in `catalog.js` lists Cowdrey One’s own downloads for the Share
+screen: the public TestFlight link now; the APK once one is on a release; the `.dmg` once it’s signed and notarized.
 
 Secrets, as in the other repositories (Settings → Secrets and variables → Actions): `DEVELOPER_ID_P12`,
 `DEVELOPER_ID_P12_PASSWORD`, `CODESIGN_IDENTITY`, `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID`;
@@ -117,8 +115,8 @@ Secrets, as in the other repositories (Settings → Secrets and variables → Ac
 
 ## Before the first release
 
-- **Terms:** add Cowdrey One to `TERMS.md` in cowdrey-md (Sections 6, 15 and 25), and note in Sections 1, 7 and
-  19 that Cowdrey One’s code is not under the MIT License. Then sync the copy here.
+- **Terms:** add Cowdrey One to `TERMS.md` in cowdrey-md (Sections 6, 15 and 25), like the other apps; its code is
+  under the MIT License like theirs. Then sync the copy here.
 - **App Review:** an iPhone app that mostly links to other apps can be turned down under Guideline 4.2 (minimum
   functionality). The web app, installed from Safari, needs no review. The iPhone app leaves Android out of its
   screens, as App Review asks.

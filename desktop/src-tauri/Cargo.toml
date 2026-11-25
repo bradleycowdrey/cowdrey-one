@@ -3,7 +3,7 @@ name = "cowdrey-one"
 version = "1.0.0"
 description = "Cowdrey One: every app by Bradley Cowdrey in one place"
 authors = ["Bradley Cowdrey"]
-license-file = "../../LICENSE"
+license = "MIT"
 publish = false
 edition = "2021"
 

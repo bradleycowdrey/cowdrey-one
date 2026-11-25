@@ -103,7 +103,7 @@ jobs:
           fi
           rm -f "$RUNNER_TEMP/upload.jks"
 
-      # With the upload key, the APK goes on the version's GitHub release (private, like this repository).
+      # With the upload key, the APK goes on the version's public GitHub release (catalog.js, hubDownloads.android).
       # The Mac workflow creates that release; wait for it, and create it only if it never appears.
       - name: Put the APK on the GitHub release
         if: env.KEYSTORE != ''

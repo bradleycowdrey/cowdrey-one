@@ -15,9 +15,11 @@
 window.CATALOG = {
   // Where Cowdrey One lives on the web: the QR code and Share link go here. pages.yml publishes web/ to it.
   hubUrl: 'https://bradleycowdrey.github.io/cowdrey-one/',
-  // Public download links for Cowdrey One itself, once there are some. The repository is private, so its
-  // GitHub release files can't be downloaded by the public: give these a public home (or the stores) first.
-  hubDownloads: { ios: '', android: '', mac: '' },
+  // Cowdrey One's own code, on GitHub (MIT License, like every app it lists).
+  hubRepo: 'bradleycowdrey/cowdrey-one',
+  // Where to get Cowdrey One itself; the Share screen offers these. Its GitHub releases are public, but a Mac .dmg
+  // is only linked here once it's signed and notarized (Developer ID secrets), and an APK once one is on a release.
+  hubDownloads: { ios: 'https://testflight.apple.com/join/vsv37k36', android: '', mac: '' },
   termsUrl: 'https://bradcowdrey.com/legal',
   termsVersion: '2026-11',
   developer: { name: 'Bradley Cowdrey', url: 'https://bradcowdrey.com', github: 'https://github.com/bradleycowdrey' },

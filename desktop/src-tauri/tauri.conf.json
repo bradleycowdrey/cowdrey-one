@@ -29,7 +29,7 @@
     "targets": ["app", "dmg"],
     "category": "Utility",
     "publisher": "Bradley Cowdrey",
-    "copyright": "© 2026 Bradley Cowdrey. All rights reserved.",
+    "copyright": "© 2026 Bradley Cowdrey",
     "homepage": "https://bradcowdrey.com",
     "shortDescription": "Every Bradley Cowdrey app in one place",
     "longDescription": "Cowdrey One gathers every free app by Bradley Cowdrey in one place, with the right download for each device, and shows when there is a new version.",

@@ -1,17 +1,21 @@
-Cowdrey One
-Copyright © 2026 Bradley Cowdrey. All rights reserved.
+MIT License
 
-This software and its source code are proprietary and confidential. No licence is granted to copy, modify,
-distribute or create derivative works from it, in whole or in part, without written permission from
-Bradley Cowdrey. Use of the published app is governed by the Terms of Use and Privacy at
-https://bradcowdrey.com/legal.
+Copyright (c) 2026 Bradley Cowdrey (bradcowdrey.com)
 
-The apps that Cowdrey One lists are separate works, each under its own licence in its own repository.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Third-party components included in Cowdrey One, under their own licences:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-- Fraunces (web/fonts/fraunces.woff2), by The Fraunces Project Authors, under the SIL Open Font License 1.1
-  (web/fonts/Fraunces-LICENSE.txt).
-- QR Code Generator for JavaScript (web/vendor/qrcode.js), by Kazuhiko Arase, under the MIT License
-  (notice at the top of the file).
-- Tauri and its plugins (desktop/), under the MIT License or the Apache License 2.0.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

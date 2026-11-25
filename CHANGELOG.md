@@ -2,7 +2,8 @@
 
 ## 1.0.0
 
-The first version: every app by Bradley Cowdrey in one place.
+The first version: every app by Bradley Cowdrey in one place. Free and open source under the MIT License, like
+every app it lists.
 
 - **Discover:** Bearings, Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF and Golden Hour, each on its own sky
   with a glimpse of the app, and every app in one list.

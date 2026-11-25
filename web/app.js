@@ -685,6 +685,7 @@
       <div class="sheet-pad"><div class="group">
         <a class="row info tap" href="${C.developer.url}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">bradcowdrey.com</span><span class="v"></span>${icon('chevron', 'chev')}</a>
         <a class="row info tap" href="${C.developer.github}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Every app on GitHub</span><span class="v"></span>${icon('chevron', 'chev')}</a>
+        ${C.hubRepo ? `<a class="row info tap" href="https://github.com/${esc(C.hubRepo)}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Cowdrey One’s code</span><span class="v" style="color:var(--ink-2)">MIT License</span>${icon('chevron', 'chev')}</a>` : ''}
         <a class="row info tap" href="${C.termsUrl}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Terms of Use and Privacy</span><span class="v"></span>${icon('chevron', 'chev')}</a></div>
       <p class="group-label">Cowdrey One</p><div class="group">
         <div class="row info"><span class="k">Version</span><span class="v">${VERSION}</span></div>

@@ -13,8 +13,8 @@ on:
       - .github/workflows/mac-app.yml
   workflow_dispatch:
 
-# contents: write lets the job create the GitHub release and attach the DMG. This repository is private, so the
-# release is for Bradley only: give the DMG a public home before linking it from catalog.js (hubDownloads.mac).
+# contents: write lets the job create the GitHub release and attach the DMG. The release is public: once the DMG is
+# signed and notarized (the Developer ID secrets), link it from catalog.js (hubDownloads.mac).
 permissions:
   contents: write
 
