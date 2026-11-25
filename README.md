@@ -109,9 +109,10 @@ screen: the public TestFlight link and the latest release’s APK now; the `.dmg
 
 Secrets, as in the other repositories (Settings → Secrets and variables → Actions): `DEVELOPER_ID_P12`,
 `DEVELOPER_ID_P12_PASSWORD`, `CODESIGN_IDENTITY`, `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID`;
-`APP_STORE_CONNECT_API_KEY`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`; `ANDROID_KEYSTORE_B64`
-(the upload keystore as base64: `base64 -i ~/cowdrey-upload.jks | pbcopy`), `ANDROID_KEYSTORE_PASSWORD`,
-`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`, as for Bearings.
+`APP_STORE_CONNECT_API_KEY`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`; `ANDROID_KEYSTORE` (the
+upload keystore as base64: `base64 -i ~/cowdrey-upload.jks | pbcopy`; `ANDROID_KEYSTORE_B64`, Bearings' name, works
+too), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`, plus `ANDROID_KEY_PASSWORD` only if the key's password
+differs from the keystore's.
 
 ## Before the first release
 
