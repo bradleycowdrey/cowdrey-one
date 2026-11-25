@@ -75,6 +75,8 @@ One web app in `web/`, with no build step and no dependencies at run time:
 | `desktop/src-tauri/plugins/installer` | The iPhone and Android installer: Android’s package installer (Kotlin) and the App Store page inside the app (Swift). |
 | `design/icon.svg` | The icon’s source: the family’s “C” with ONE, set exactly as Cowdrey.MD and Cowdrey.PDF set MD and PDF, in clay. |
 | `tests/e2e.cjs` | Catalog checks and end-to-end tests as an iPhone, an Android phone and a Mac, in Chromium. |
+| `tests/app-store-screens.mjs` | Cowdrey One’s App Store screenshots (`npm run screens`): the real app on iPhone, iPad and Mac in dark mode, five of each, in `docs/app-store`. |
+| `design/app-store/` | The Cowdrey family’s App Store screenshot standard: the master template every app copies, its fonts and [the rules](design/app-store/README.md). |
 
 ### Add an app
 
@@ -101,7 +103,7 @@ npm ci && npx playwright install chromium && npm test
 |---|---|---|
 | **Web, and installed from the browser** | `pages.yml` publishes `web/` to https://bradleycowdrey.github.io/cowdrey-one/ (the QR code’s address, `hubUrl` in `catalog.js`). From there it installs like an app: Safari’s Share → Add to Home Screen on iPhone and iPad, Install app on Android, File → Add to Dock on the Mac. | Works once Pages publishes from Actions: Settings → Pages → Source: **GitHub Actions** (the workflow’s own token can’t turn Pages on). |
 | **Mac** | `mac-app.yml` builds a universal `.dmg`, signed and notarized with the same six Developer ID secrets as the other apps. | Needs the secrets added to this repository. |
-| **iPhone and iPad** | `ios-app.yml` builds, signs and uploads to TestFlight with the App Store Connect API key, as for Cowdrey.PDF; it registers the bundle ID `com.bradcowdrey.cowdreyone` if needed. Then `testflight-public.yml` adds the build to the “Public” tester group, sends it to beta App Review and prints the public TestFlight link. | Needs the key secrets, and an App Store Connect app record (Apps, +, New App: Cowdrey One, bundle ID `com.bradcowdrey.cowdreyone`, SKU `cowdrey-one`). Listing and review notes: `docs/app-store/listing.json`. |
+| **iPhone and iPad** | `ios-app.yml` builds, signs and uploads to TestFlight with the App Store Connect API key, as for Cowdrey.PDF; it registers the bundle ID `com.bradcowdrey.cowdreyone` if needed. Then `testflight-public.yml` adds the build to the “Public” tester group, sends it to beta App Review and prints the public TestFlight link. | Needs the key secrets, and an App Store Connect app record (Apps, +, New App: Cowdrey One, bundle ID `com.bradcowdrey.cowdreyone`, SKU `cowdrey-one`). Listing and review notes: `docs/app-store/listing.json`; screenshots (iPhone 6.9", iPad 13" and Mac): `docs/app-store/*.png`, from `npm run screens` on the [family standard](design/app-store/README.md). |
 | **Android** | `android-app.yml` builds the APK, signed with the upload key secrets, for the GitHub release. | Needs the keystore secrets. |
 | **Google Play** | The same workflow builds the Google Play version as an App Bundle (`STORE=play`): each app comes from its Google Play page, with no APKs and no Install All. Runs started by hand on `main` send it to the closed test; `play-listing.yml` sends the store listing in `docs/play`. | Closed test, coming soon. Needs `PLAY_SERVICE_ACCOUNT_JSON` and the keystore secrets; Play Console steps and App content answers in [docs/play/README.md](docs/play/README.md). |
 

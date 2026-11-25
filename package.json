@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node tests/e2e.cjs",
+    "screens": "node tests/app-store-screens.mjs",
     "start": "python3 -m http.server 8080 --directory web"
   },
   "devDependencies": {

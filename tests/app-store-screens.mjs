@@ -1,0 +1,232 @@
+// Cowdrey One's App Store screenshots: iPhone 6.9" (1320 x 2868), iPad 13" (2064 x 2752) and Mac (2880 x 1800), five
+// of each, on the Cowdrey family template (design/app-store/store-frame.mjs in Cowdrey One's clay, THEMES.one; the
+// standard is design/app-store/README.md).
+//
+// Each picture is the real app (web/, served here) in dark mode at the device's size, as the installed app shows it:
+// its native side stood in for as in tests/e2e.cjs (the iPhone and iPad app, the Mac app), the Terms already agreed,
+// Two Degrees on the iPhone and iPad (seen by its link, twodegrees://), Meridian and Two Degrees on the Mac, and
+// GitHub's releases API answered here with each app's notes. Nothing goes to the network.
+//
+// Run (after npm ci and npx playwright install chromium):
+//      npm run screens [-- --only=iphone,ipad,mac] [--shots=1,2] [--raw=dir] [--reuse]
+//   -> docs/app-store/{iphone,ipad,mac}-N-<story>.png (RGB, no alpha, as App Store Connect wants them)
+//   --raw=dir keeps each raw screen as dir/<device>-<story>.png; with --reuse it composes from those instead.
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+import { compose, THEMES } from '../design/app-store/store-frame.mjs';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const WEB = path.join(root, 'web');
+const OUT = path.join(root, 'docs/app-store');
+const ARG = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, v] = a.replace(/^--/, '').split('='); return [k, v ?? true]; }));
+const ONLY = ARG.only ? String(ARG.only).split(',') : ['iphone', 'ipad', 'mac'];
+const SHOTS = ARG.shots ? String(ARG.shots).split(',').map(Number) : null;
+const RAW = ARG.raw ? path.resolve(String(ARG.raw)) : null;
+
+/* ---------------- the devices ---------------- */
+// Screens in points, and the safe areas of the real screens (iPhone 16 Pro Max and 13-inch iPad Pro), as Cowdrey.PDF's
+// generator puts them in. The Mac app lays its title bar over the top 28 points of the window (titleBarStyle
+// Overlay), so its window is captured 28 points taller and that strip is left to the template's title bar.
+const UA = {
+  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  ipad: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+};
+const DEVICES = {
+  iphone: { w: 440, h: 956, scale: 3, touch: true, safe: { top: 62, bottom: 34 }, name: 'iPhone' },
+  ipad: { w: 1032, h: 1376, scale: 2, touch: true, safe: { top: 24, bottom: 20 }, name: 'iPad' },
+  mac: { w: 1180, h: 700, scale: 2, touch: false, safe: { top: 0, bottom: 0 }, name: 'Mac', titlebar: 28 },
+};
+// What's on each device: the iPhone and iPad app sees Two Degrees by its link; the Mac app sees what's in
+// Applications (Meridian from its .dmg, Two Degrees from the Mac App Store).
+const INSTALLED = {
+  iphone: { twodegrees: true },
+  ipad: { twodegrees: true },
+  mac: { meridian: { version: '2.1.4' }, 'two-degrees': { version: '2.3.5', appStore: true } },
+};
+// A Tuesday morning, for the date on Discover and "Checked 9:41 AM".
+const NOW = '2026-11-24T09:41:00-05:00', ZONE = 'America/New_York';
+
+/* ---------------- each app's latest release on GitHub, with notes from its changelog ---------------- */
+const RELEASES = {
+  'cowdrey-pdf': { v: '1.0.0', at: '2026-11-18T17:20:00Z', notes: `**Cowdrey.PDF 1.0.** A full PDF viewer and editor, free, on your device, with nothing uploaded.
+
+- **Edit text and pictures in place:** click a line and retype it in its own font, size and colour.
+- **Sign and fill forms**, with a signature kept on your device for next time.
+- **Organize pages**, OCR for scanned pages, redact, protect and compress.` },
+  'cowdrey-md': { v: '2.0.2', at: '2026-11-19T15:05:00Z', notes: `Android and the Mac now work like the iPhone app.
+
+- **Android shares like the iPhone.** Share Markdown, Word and web page open the Android share sheet, and Share PDF… makes a PDF and shares it in one step.
+- **The Mac has a share menu:** File → Share… opens Mail, Messages, AirDrop and Notes.
+- **The Mac picks up changes made elsewhere**, as on iPhone and Android. Your unsaved edits are never replaced.
+- **Appearance on the Mac:** Match system, Light and Dark are in the View menu.` },
+  meridian: { v: '2.1.4', at: '2026-11-13T18:30:00Z', notes: `- **Soft edges:** each city's photo fades gently into the background at the edge of its row, and every hour tile has a thin, softly blurred outline instead of a hard edge. In the panel and the widgets.
+- **Widgets laid out like the panel:** compact text, slim hour tiles and the city photo showing between them.
+- **Widgets show more:** whether each city is working, off hours or on a weekend, with off-hours tiles dimmed.` },
+  'two-degrees': { v: '2.3.5', at: '2026-11-21T16:45:00Z', notes: `- **Two Degrees for Mac is on the Mac App Store.** The iPhone app's "Get Two Degrees for Mac" link now opens it.
+- **Android widgets like the iPhone's:** the other unit beside the reading, and today's range in both units.` },
+  bearings: { v: '2.4.0', at: '2026-11-22T14:10:00Z', notes: `- **Android map:** place names no longer show as white blocks.
+- **Extra Large** shows bigger numbers in its summary row, on every platform.
+- **Widgets:** cleaner sun and moon marks that stay clear of N, E, S and W.` },
+};
+function release(repo) {
+  const r = RELEASES[repo];
+  if (!r) return null;
+  const dl = { 'cowdrey-pdf': 'Cowdrey.PDF.dmg', 'cowdrey-md': 'Cowdrey.MD.dmg', meridian: 'Meridian.dmg', 'two-degrees': 'TwoDegrees.dmg', bearings: 'Bearings.dmg' }[repo];
+  // As GitHub has them: the notes, then the downloads, which What's New leaves out.
+  return { tag_name: 'v' + r.v, name: 'v' + r.v, published_at: r.at, html_url: `https://github.com/bradleycowdrey/${repo}/releases/tag/v${r.v}`,
+    body: `## What's new\n\n${r.notes}\n\n## Downloads\n\n| Mac | https://github.com/bradleycowdrey/${repo}/releases/download/v${r.v}/${dl} |` };
+}
+
+/* ---------------- the app, served here ---------------- */
+function serve() {
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+  const server = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    if (p.endsWith('/')) p += 'index.html';
+    const f = path.join(WEB, path.normalize(p));
+    if (!f.startsWith(WEB) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' });
+    fs.createReadStream(f).pipe(res);
+  });
+  return new Promise((r) => server.listen(0, '127.0.0.1', () => r(server)));
+}
+
+// The app's native side, as tests/e2e.cjs stands in for it: what's installed, and nothing else to do.
+function fakeNative(installed) {
+  const answer = async (cmd, args) => {
+    if (cmd === 'installed_apps') {   // the Mac app: what's in Applications
+      const r = {};
+      for (const a of args.apps) if (installed[a.id]) r[a.id] = { version: installed[a.id].version, appStore: !!installed[a.id].appStore, path: '/Applications/' + a.appName };
+      return r;
+    }
+    if (cmd === 'plugin:installer|native' && args.method === 'canOpen') {   // the iPhone and iPad app: which links open
+      const open = {};
+      for (const sc of args.args.schemes) open[sc] = !!installed[sc];
+      return { open };
+    }
+    return null;
+  };
+  window.__TAURI__ = { core: { invoke: answer }, event: { listen: async () => () => {} }, opener: { openUrl: async () => {} } };
+}
+
+// Each device has a browser of its own, with the screen's size and scale set when it starts: with the scale only
+// emulated, Chromium draws the frosted glass (backdrop-filter blur, as on the tab bar and the cards' bars) clear.
+let browser, server, base, termsVersion, css;
+const devices = {};
+async function app(kind) {
+  const d = DEVICES[kind], h = d.h + (d.titlebar || 0);
+  devices[kind] ||= await chromium.launch({ args: [`--force-device-scale-factor=${d.scale}`, `--window-size=${d.w},${h}`] });
+  const ctx = await devices[kind].newContext({
+    viewport: null, hasTouch: d.touch, userAgent: UA[kind], colorScheme: 'dark', locale: 'en-US', timezoneId: ZONE,
+  });
+  await ctx.clock.setFixedTime(new Date(NOW));
+  // The device's safe areas, which a browser doesn't have (env() is 0 there).
+  let sheet = css;
+  for (const [side, v] of Object.entries({ top: d.safe.top, bottom: d.safe.bottom })) sheet = sheet.split(`env(safe-area-inset-${side}, 0px)`).join(v + 'px');
+  await ctx.route(base + 'app.css', (r) => r.fulfill({ status: 200, contentType: 'text/css', body: sheet }));
+  await ctx.route((url) => !url.href.startsWith(base), (r) => {
+    const u = r.request().url();
+    if (u.startsWith('https://api.github.com/repos/')) {
+      const body = release(u.split('/repos/')[1].split('/')[1]);
+      return r.fulfill({ status: body ? 200 : 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body || {}) });
+    }
+    return r.abort();
+  });
+  await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), termsVersion);
+  await ctx.addInitScript(fakeNative, INSTALLED[kind]);
+  const p = await ctx.newPage();
+  p.errors = [];
+  p.on('pageerror', (e) => p.errors.push(e.message));
+  await p.goto(base, { waitUntil: 'load' });
+  const screen = await p.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
+  if (screen.join() !== [d.w, h, d.scale].join()) throw new Error(`${kind}: a ${screen.join(' x ')} screen, not ${d.w} x ${h} x ${d.scale}`);
+  // It checks GitHub for new versions 1.2 seconds after it starts.
+  await p.waitForFunction(() => !!localStorage.getItem('cowdrey-one.checkedAt'), null, { timeout: 10000 });
+  await p.waitForTimeout(400);
+  p.ctx = ctx;
+  return p;
+}
+// A tap or click, as the app gets it (without scrolling the page to the button first).
+const tap = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel);
+const wide = (p) => p.evaluate(() => innerWidth >= 900);
+const tab = async (p, t) => tap(p, (await wide(p)) ? `.side-item[data-tab="${t}"]` : `.tab[data-tab="${t}"]`);
+
+/* ---------------- the stories ---------------- */
+// One idea each, in the order of the App Store pictures (and of Cowdrey One's Google Play screenshots).
+const STORIES = [
+  { slug: 'discover', head: 'Every app, one place.', sub: 'All of Bradley Cowdrey’s free apps.',
+    async shoot() {} },
+  { slug: 'app-page', head: 'Know each app.', sub: 'What it does, what’s new, where to get it.',
+    async shoot(p) { await tap(p, '#all-apps [data-id="meridian"] .main'); } },
+  { slug: 'get-every-app', head: 'Get them all.', sub: (kind) => (kind === 'mac' ? 'One click for each app, or Install All.' : 'One tap for each app, or Get All.'),
+    async shoot(p) { await tap(p, '#setup-slot [data-act="setup"]'); } },
+  // "What's on this iPhone." is wider than the iPhone picture's one line, so the iPhone says it shorter.
+  { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone.' : `What’s on this ${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.',
+    async shoot(p) { await tab(p, 'library'); } },
+  { slug: 'share', head: 'Share it.', sub: 'A QR code for any phone.',
+    async shoot(p) { await tab(p, 'share'); } },
+];
+const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
+
+async function capture(kind, story) {
+  const d = DEVICES[kind];
+  const p = await app(kind);
+  await story.shoot(p);
+  // Sheets slide up and views fade in; then every picture on the screen has loaded.
+  await p.waitForTimeout(900);
+  await p.waitForFunction(() => [...document.images].every((i) => {
+    const r = i.getBoundingClientRect();
+    return i.complete || !r.height || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth;
+  }), null, { timeout: 10000 });
+  if (kind === 'mac') await p.mouse.move(d.w - 4, d.h + d.titlebar - 4);
+  await p.waitForTimeout(300);
+  const png = await p.screenshot({ clip: { x: 0, y: d.titlebar || 0, width: d.w, height: d.h } });
+  const ok = await p.evaluate(() => ({ native: window.CowdreyOne.native, dark: document.documentElement.dataset.theme }));
+  if (ok.native !== (kind === 'mac' ? 'mac' : 'ios') || ok.dark !== 'dark') throw new Error(`${kind} ${story.slug}: not the ${kind} app in dark mode (${JSON.stringify(ok)})`);
+  if (p.errors.length) throw new Error(`${kind} ${story.slug}: ${p.errors.join('; ')}`);
+  await p.ctx.close();
+  return png;
+}
+
+const b64 = (f) => fs.readFileSync(path.join(root, f)).toString('base64');
+const FONTS = { fraunces: b64('web/fonts/fraunces.woff2'), instrument: b64('design/app-store/instrument-sans.woff2') };
+
+(async () => {
+  const sandbox = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(WEB, 'catalog.js'), 'utf8'), sandbox);
+  termsVersion = sandbox.window.CATALOG.termsVersion;
+  css = fs.readFileSync(path.join(WEB, 'app.css'), 'utf8');
+  if (!css.includes('env(safe-area-inset-top, 0px)')) throw new Error('app.css no longer sets the safe areas as this expects');
+  server = await serve();
+  base = `http://127.0.0.1:${server.address().port}/`;
+  browser = await chromium.launch();
+  fs.mkdirSync(OUT, { recursive: true });
+  if (RAW) fs.mkdirSync(RAW, { recursive: true });
+  try {
+    for (const kind of ONLY) {
+      const heads = STORIES.map((s) => text(s.head, kind));
+      // Every headline in a set has the same number of lines.
+      const lines = new Set(heads.map((h) => h.split('\n').length));
+      if (lines.size !== 1) throw new Error(`${kind}: headlines of different lengths`);
+      for (const [k, story] of STORIES.entries()) {
+        if (SHOTS && !SHOTS.includes(k + 1)) continue;
+        const file = `${kind}-${k + 1}-${story.slug}.png`;
+        const rawFile = RAW && path.join(RAW, `${kind}-${story.slug}.png`);
+        const png = ARG.reuse && rawFile ? fs.readFileSync(rawFile) : await capture(kind, story);
+        if (rawFile && !ARG.reuse) fs.writeFileSync(rawFile, png);
+        const out = await compose(browser, kind, { head: heads[k], sub: text(story.sub, kind), png, title: 'Cowdrey One', lines: [...lines][0], file }, THEMES.one, FONTS);
+        fs.writeFileSync(path.join(OUT, file), out);
+        console.log('wrote docs/app-store/' + file);
+      }
+    }
+  } finally {
+    await browser.close();
+    for (const b of Object.values(devices)) await b.close();
+    server.close();
+  }
+})().catch((e) => { console.error(e); process.exit(1); });

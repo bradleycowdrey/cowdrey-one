@@ -9,7 +9,7 @@ This is the master copy. Each app keeps a **word-for-word copy** of it; change i
 | | Font | Setting |
 |---|---|---|
 | Headline | **Fraunces** (variable; `web/fonts/fraunces.woff2`, SIL Open Font License) | weight 560, optical size 48, letter-spacing −0.012em, line-height 1.04, centred, balanced |
-| Sub-line | **Instrument Sans** (variable; [`instrument-sans.woff2`](instrument-sans.woff2), SIL Open Font License) | weight 500, letter-spacing −0.005em, line-height 1.25, centred, balanced |
+| Sub-line | **Instrument Sans** (variable; [`instrument-sans.woff2`](instrument-sans.woff2), SIL Open Font License: [licence](InstrumentSans-LICENSE.txt)) | weight 500, letter-spacing −0.005em, line-height 1.25, centred, balanced |
 | Mac title bar | Instrument Sans | weight 600, 22 px |
 
 Fraunces at 560 / opsz 48 / −0.012em is exactly how Cowdrey One sets its titles.
@@ -40,7 +40,7 @@ Fraunces at 560 / opsz 48 / −0.012em is exactly how Cowdrey One sets its title
 | Two Degrees | `twodegrees` | |
 | Bearings | `bearings` | |
 | Golden Hour | `goldenhour` | |
-| Cowdrey One | `one` | |
+| Cowdrey One | `one` | `tests/app-store-screens.mjs` (`npm run screens`), using this master copy |
 
 ## Using it
 
