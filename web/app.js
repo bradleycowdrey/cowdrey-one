@@ -80,6 +80,7 @@
     macappstore: { how: 'Mac App Store', btn: 'Get', toast: (n) => `Opening ${n} on the Mac App Store.` },
     dmg: { how: 'Download (.dmg)', btn: 'Get', toast: (n) => `Downloading ${n}. Open the .dmg in Downloads and drag ${n} into Applications.` },
     apk: { how: 'Download (APK)', btn: 'Get', toast: (n) => `Downloading ${n}. Open it from Downloads and tap Install.` },
+    play: { how: 'Google Play', btn: 'Get', toast: (n) => `Opening ${n} on Google Play.` },
     web: { how: 'In your browser', btn: 'Open', toast: (n) => `Opening ${n}.` },
   };
   const options = (a, p) => (a.platforms[p] && a.platforms[p].get) || [];
@@ -229,7 +230,8 @@
         const list = APPS.filter((a) => a.bundle && a.platforms.android);
         const r = await nativeCall('installedVersions', { packages: list.map((a) => a.bundle) });
         const apps = (r && r.apps) || {};
-        for (const a of list) if (apps[a.bundle]) found[a.id] = { v: apps[a.bundle].version, k: 'apk' };
+        // An app installed from Google Play is signed with Google's key, so a GitHub APK can't update it: Play does.
+        for (const a of list) if (apps[a.bundle]) found[a.id] = { v: apps[a.bundle].version, k: apps[a.bundle].installer === 'com.android.vending' ? 'play' : 'apk' };
       }
     } catch (e) { return; }
     for (const a of APPS) {
@@ -569,7 +571,7 @@
       pl.get.forEach((o, i) => {
         const here = p === plat() && i === 0;
         // Open only where Cowdrey One has seen the app on this device, got this way.
-        const seenHere = p === plat() && mine(a) && mine(a).k === o.kind;
+        const seenHere = p === plat() && mine(a) && (mine(a).k === o.kind || (mine(a).k === 'play' && o.kind === 'apk'));
         const btn = seenHere
           ? `<button class="pill" data-act="launch" data-id="${a.id}" aria-label="Open ${esc(a.name)}, on ${esc(thisDevice())}">Open</button>`
           : `<a class="pill${here ? ' solid' : ''}" data-act="get-opt" data-id="${a.id}" data-p="${p}" data-i="${i}" href="${esc(o.url)}"${linkTarget(o)}>${KIND[o.kind].btn}</a>`;

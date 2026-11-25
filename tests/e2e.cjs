@@ -218,7 +218,7 @@ async function open(ctx, url, errors, name) {
       if (cmd === 'plugin:installer|native') {
         const x = args.args || {};
         if (args.method === 'canInstall') return { allowed: true };
-        if (args.method === 'installedVersions') { const apps = {}; for (const k of x.packages) if (now[k]) apps[k] = { version: now[k] }; return { apps }; }
+        if (args.method === 'installedVersions') { const apps = {}; for (const k of x.packages) if (now[k]) apps[k] = { version: now[k], installer: (cfg.installers || {})[k] || '' }; return { apps }; }
         if (args.method === 'install') { now[x.packageName] = '9.9.9'; return { status: 'installed' }; }
         if (args.method === 'showStore') { window.__calls.push('store:' + x.id); return null; }
         if (args.method === 'canOpen') { const open = {}; for (const sc of x.schemes) open[sc] = !!now[sc]; return { open }; }
@@ -228,10 +228,10 @@ async function open(ctx, url, errors, name) {
     };
     window.__TAURI__ = { core: { invoke: answer }, event: { listen: async () => () => {} }, opener: { openUrl: async () => {} } };
   }
-  async function nativeApp(name, opts, installedNow) {
+  async function nativeApp(name, opts, installedNow, installers) {
     const { ctx } = await context(browser, base, opts, current);
     await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
-    await ctx.addInitScript(fakeNative, { installed: installedNow });
+    await ctx.addInitScript(fakeNative, { installed: installedNow, installers });
     const p = await open(ctx, base, errors, name);
     await p.waitForTimeout(400);
     return { ctx, p };
@@ -267,6 +267,19 @@ async function open(ctx, url, errors, name) {
     const c = await calls(p);
     check(c.includes('canInstall') && c.filter((x) => x === 'install').length === 4, 'it checks the install permission, then hands each APK to Android');
     check(await p.evaluate(() => ['cowdrey-md', 'meridian', 'two-degrees', 'bearings'].every((id) => window.CowdreyOne.state(id).s === 'done')), 'then every app shows as installed');
+    await ctx.close();
+  }
+
+  console.log('Android app, with Meridian from Google Play');
+  {
+    const { ctx, p } = await nativeApp('android-play', { ...devices['Pixel 7'] }, { 'com.bradcowdrey.meridian': '1.0.0' }, { 'com.bradcowdrey.meridian': 'com.android.vending' });
+    check(await p.evaluate(() => window.CowdreyOne.state('meridian').s) === 'done', 'an app installed from Google Play shows as installed, with no GitHub update (Play signs it differently)');
+    check((await p.textContent('#all-apps [data-id="meridian"] .pill')).trim() === 'Open', '… and offers Open');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Install All (3)', 'Install All leaves it out, so its APK never meets the Play copy');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
+    check(/Google Play/.test(await p.textContent('#view-library')), 'the Library says it came from Google Play');
     await ctx.close();
   }
 
