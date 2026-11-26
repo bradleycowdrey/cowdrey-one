@@ -42,11 +42,14 @@ jobs:
       - uses: actions/checkout@v4
 
       # Google Play takes a build only with a higher version code than the last, and Tauri's code comes from the version
-      # number (1.0.0 is 1000000), which stays the same from build to build. So the Google Play version's code is
-      # 100000000 plus this workflow's run number, which goes up with every run. The APK keeps Tauri's code, below
-      # every Play code until version 100.
+      # number (major x 1000000 + minor x 1000 + patch: 1.0.0 is 1000000), which stays the same from build to build.
+      # So the Google Play version's code is Tauri's code plus this workflow's run number: both only ever go up, so
+      # every build's code is higher than the last, and the codes grow slowly (Play warns about big jumps, and a code
+      # can never go back down). The APK keeps Tauri's code, below every Play code.
       - name: Version code for Google Play
-        run: echo "PLAY_VERSION_CODE=$((100000000 + GITHUB_RUN_NUMBER))" | tee -a "$GITHUB_ENV"
+        run: |
+          BASE=$(node -p "const [a, b, c] = require('./desktop/src-tauri/tauri.conf.json').version.split('.').map(Number); a * 1000000 + b * 1000 + c")
+          echo "PLAY_VERSION_CODE=$((BASE + GITHUB_RUN_NUMBER))" | tee -a "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:

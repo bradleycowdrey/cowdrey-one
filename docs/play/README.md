@@ -39,9 +39,12 @@ other apps or download APKs, so:
   `main` (not for edits to this README), or when run by hand.
 
 **Version codes.** Play takes a build only with a higher version code than the last. Tauri's code comes from the
-version number (1.0.0 is 1000000), which doesn't change between builds, so the Play bundle's code is
-**100000000 + the Android app workflow's run number** (`--config` sets `bundle.android.versionCode`), and every run
-has a higher one. The APK keeps Tauri's code (1000000 for 1.0.0), below every Play code until version 100.
+version number (major × 1000000 + minor × 1000 + patch: 1.0.0 is 1000000), which doesn't change between builds, so
+the Play bundle's code is **Tauri's code + the Android app workflow's run number** (`--config` sets
+`bundle.android.versionCode`): both only go up, so every run has a higher code, and the codes grow slowly, as Play
+asks (a code can never go back down once released, and the highest allowed is 2100000000). The APK keeps Tauri's code
+(1000000 for 1.0.0), below every Play code. (The first Play uploads used 100000000 + the run number; they were never
+released, and later builds replace them.)
 Re-running a run reuses its number, so Play skips it (`[SKIP]` in the log): start a new run instead.
 
 **Target API level.** Play requires new apps to target Android 16 (API 36) or later. The Tauri CLI pinned in
