@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "appstore",
+  "description": "The Mac App Store version: Cowdrey One opens Mac App Store pages (macappstore://, in the App Store app) and web apps with the system, sees which apps are installed, and moves its window by its top edge. No installer: an app from the Mac App Store may not download or install other apps (App Review guidelines 2.4.5 and 2.5.2).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "opener:default",
+    { "identifier": "opener:allow-open-url", "allow": [{ "url": "macappstore://*" }] }
+  ]
+}

@@ -22,8 +22,11 @@ window.CATALOG = {
   // Where to get Cowdrey One itself; the Share screen offers these. Its GitHub releases are public, but a Mac .dmg
   // is only linked here once it's signed and notarized (Developer ID secrets). The APK is signed with the upload key.
   // play: Cowdrey One's Google Play page, which the Google Play version's Share screen offers instead of the APK.
+  // appstore: Cowdrey One's own App Store page, once it's live. The App Store versions (and the web app behind their
+  // ?store=apple link) offer it instead of TestFlight, and their QR code opens it; until then they offer no iPhone
+  // link, and the QR code opens the web app with ?store=apple, which offers no downloads.
   hubDownloads: { ios: 'https://testflight.apple.com/join/vsv37k36', android: 'https://github.com/bradleycowdrey/cowdrey-one/releases/latest/download/CowdreyOne.apk', mac: '',
-    play: 'https://play.google.com/store/apps/details?id=com.bradcowdrey.cowdreyone' },
+    play: 'https://play.google.com/store/apps/details?id=com.bradcowdrey.cowdreyone', appstore: '' },
   termsUrl: 'https://bradcowdrey.com/legal',
   termsVersion: '2026-11',
   developer: { name: 'Bradley Cowdrey', url: 'https://bradcowdrey.com', github: 'https://github.com/bradleycowdrey' },

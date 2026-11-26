@@ -29,20 +29,21 @@ const RAW = ARG.raw ? path.resolve(String(ARG.raw)) : null;
 
 /* ---------------- the devices ---------------- */
 // Screens in points, and the safe areas of the real screens (iPhone 16 Pro Max and 13-inch iPad Pro), as Cowdrey.PDF's
-// generator puts them in. The Mac app is captured as its whole window at its real width (1180, tauri.conf.json) and
-// a little taller than it opens (872, not 820), as someone would size it: the sheets (Get Every App, an app's page)
-// are 60 points shorter than the window, so at 872 Get Every App ends cleanly below a whole row. The other pictures
-// set the window's size for what they show (macW, macH), so each window ends at a clean break, never through a row:
+// generator puts them in. The Mac app is captured as its whole window at its real width (1180, tauri.conf.json), and
+// each picture sets the window's size for what it shows (macW, macH, or a height measured by fit), so each window
+// ends at a clean break, never through a card or a row:
 // - Discover is wider (1320), so its carousel shows three apps, and ends in the gap below the set-up card, above All
 //   Apps (whose boxes of three apps are too tall for the window to end below them).
-// - An app's page (Bearings) is in a narrower window (1044), where the page fills the whole column beside the sidebar:
-//   it reads as the app's page, not a second sheet over Discover like Get Every App, and no dimmed words are cut by
-//   its edges. The window's height ends the page just below What's New's first note, and Discover behind it is
-//   scrolled so the thin strips above and below the page hold no words or pictures (toClearStrips).
-// - The Library ends below its last card, Get on Your Phone below the iPhone and iPad steps.
+// - An app's page (Bearings) and Get Every App are in a narrower window (1044), where the sheet fills the whole
+//   column beside the sidebar and hangs from the window's top, so no dimmed words are cut by its edges and nothing
+//   shows above it. The app's page ends just below What's New's first note; Get Every App ends below its last app and
+//   the note under them (fitSheet). Discover behind each is scrolled so the thin strip below the sheet holds no words
+//   or pictures (toClearStrips).
+// - The Library ends between its last card and Settings, Get on Your Phone between its last card and the words below
+//   it (fitGap).
 // The Mac pictures are the Mac App Store version (desktop/build.mjs STORE=appstore, window.COWDREY_STORE = 'appstore'),
-// which, like the iPhone and iPad app, names and shows no other platform (App Review guideline 2.3.10); capture()
-// refuses a picture that shows Android.
+// which, like the iPhone and iPad app, names and shows no other platform, browser or system (App Review guideline
+// 2.3.10) and downloads or installs nothing (2.4.5, 2.5.2); capture() refuses a picture that shows any of it.
 // The window lays its title bar over the top 28 points (titleBarStyle Overlay, hiddenTitle), so the template adds only the
 // traffic lights there, and the window is shown on the family's MacBook desktop (desktop(), device 'macbook').
 const UA = {
@@ -55,12 +56,12 @@ const DEVICES = {
   ipad: { w: 1032, h: 1376, scale: 2, touch: true, safe: { top: 24, bottom: 20 }, name: 'iPad' },
   mac: { w: 1180, h: 872, scale: 2, touch: false, safe: { top: 0, bottom: 0 }, name: 'Mac' },
 };
-// What's on each device: the iPhone and iPad app sees Two Degrees by its link; the Mac app sees what's in
-// Applications (Meridian from its .dmg, Two Degrees from the Mac App Store).
+// What's on each device: the iPhone and iPad app sees Two Degrees by its link; the Mac app sees Meridian on the Mac,
+// and not yet Two Degrees, the app on the Mac App Store, so Get Every App shows the way to get it there.
 const INSTALLED = {
   iphone: { twodegrees: true },
   ipad: { twodegrees: true },
-  mac: { meridian: { version: '2.1.4' }, 'two-degrees': { version: '2.3.5', appStore: true } },
+  mac: { meridian: { version: '2.1.4' } },
 };
 // A Tuesday morning, for the date on Discover and "Checked 9:41 AM". The Mac's is the Wednesday morning that the
 // family's MacBook desktop shows in its menu bar (MAC_CLOCK, the same for every app), so the two agree.
@@ -172,26 +173,88 @@ async function app(kind, h = DEVICES[kind].h, w = DEVICES[kind].w) {
 const tap = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel);
 const wide = (p) => p.evaluate(() => innerWidth >= 900);
 const tab = async (p, t) => tap(p, (await wide(p)) ? `.side-item[data-tab="${t}"]` : `.tab[data-tab="${t}"]`);
-// On the Mac a sheet stops 30 points above the window's bottom, so Discover shows below it. Scrolled down to All Apps
-// first (the set-up card 15 points below the window's top), only Discover's empty bottom margin shows there, not a
-// list cut off by the window, and the window's top edge falls between the carousel and the set-up card rather than
-// through either, whatever the window's height.
-// For an app's page on the Mac: the page fills the column beside the sidebar and stops 30 points short of the
-// window's top and bottom, so Discover shows, dimmed, in a strip above and below it. Discover is scrolled so that
-// neither strip holds any words or pictures (only the cards' and boxes' plain backgrounds), the first such place.
+// For an app's page and Get Every App on the Mac: the sheet fills the column beside the sidebar and hangs from the
+// top of the window, as the Mac App Store version's sheets do (so nothing shows above it), and stops at least 30
+// points short of the window's bottom, so Discover shows, dimmed, in a strip below it and a sliver beside it. Discover
+// is scrolled so that neither holds any words or pictures, nor, beside it, a featured app's card, the first such place;
+// and where it can be, the strip below holds no card's plain background either.
 const toClearStrips = async (p) => p.evaluate(() => {
   const main = document.querySelector('#view-discover');
   const boxes = [];
   const walk = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
   for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); boxes.push(...r.getClientRects()); }
   for (const e of main.querySelectorAll('img, svg')) boxes.push(e.getBoundingClientRect());
-  const spans = boxes.filter((r) => r.width && r.height).map((r) => [r.top + scrollY, r.bottom + scrollY]);
-  const clear = (a, b) => spans.every(([t, u]) => u <= a || t >= b);
+  for (const e of main.querySelectorAll('.feature')) boxes.push(e.getBoundingClientRect());
+  const spans = boxes.filter((r) => r.width && r.height).map((r) => [r.top + scrollY, r.bottom + scrollY, r.left, r.right]);
+  const clear = (a, b, l = 0) => spans.every(([t, u, , r]) => u <= a || t >= b || r <= l);
+  const strip = innerHeight - Math.min(860, innerHeight - 30);   // below the sheet
+  // The thin strip beside the sheet, on the right (the sheet is centred in the column beside the sidebar).
+  const side = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--side')) || 0;
+  const right = (innerWidth + side) / 2 + Math.min(700, innerWidth - side - 80) / 2;
   const max = document.documentElement.scrollHeight - innerHeight;
-  for (let y = 0; y <= max; y++) if (clear(y, y + 30) && clear(y + innerHeight - 30, y + innerHeight)) return window.scrollTo(0, y), y;
-  throw new Error('no scroll position leaves both strips beside the page clear');
+  // Best, the strip below holds no card at all, not even a card's plain background (any box drawn with a fill).
+  const filled = [...main.querySelectorAll('*')].filter((e) => { const c = getComputedStyle(e); return c.backgroundImage !== 'none' || !/rgba\(0, 0, 0, 0\)|transparent/.test(c.backgroundColor); })
+    .map((e) => e.getBoundingClientRect()).filter((r) => r.width && r.height).map((r) => [r.top + scrollY, r.bottom + scrollY]);
+  const bare = (a, b) => filled.every(([t, u]) => u <= a || t >= b);
+  for (let y = 0; y <= max; y++) if (bare(y + innerHeight - strip, y + innerHeight) && clear(y + innerHeight - strip, y + innerHeight) && clear(y, y + innerHeight, right)) return window.scrollTo(0, y), y;
+  for (let y = 0; y <= max; y++) if (clear(y + innerHeight - strip, y + innerHeight) && clear(y, y + innerHeight, right)) return window.scrollTo(0, y), y;
+  throw new Error('no scroll position leaves the strips below and beside the page clear');
 });
-const toEnd = async (p) => { if (await wide(p)) await p.evaluate(() => window.scrollTo(0, document.querySelector('#setup-slot').getBoundingClientRect().top + scrollY - 15)); };
+
+// On the iPad, an app's page is a page sheet down to the bottom of the screen (app.css): it is scrolled the least that
+// makes the screen's bottom edge fall between lines and pictures, never through a line of words, an icon or a button.
+// What's New, above, shows whole.
+const toCleanCut = async (p) => p.evaluate(() => {
+  const sc = document.querySelector('.sheet .sheet-scroll');
+  const boxes = [];
+  const walk = document.createTreeWalker(sc, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
+  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); boxes.push(...r.getClientRects()); }
+  for (const e of sc.querySelectorAll('img, svg, .pill, .glyph, .icon')) boxes.push(e.getBoundingClientRect());
+  const spans = boxes.filter((r) => r.width && r.height).map((r) => [r.top + sc.scrollTop, r.bottom + sc.scrollTop]);
+  const notes = document.querySelector('.sheet #whats-new').getBoundingClientRect().bottom + sc.scrollTop;
+  const H = innerHeight - 4;   // a little clear space at the very bottom
+  for (let y = 0; y <= sc.scrollHeight - sc.clientHeight; y++) {
+    if (notes - y > H) break;
+    if (spans.every(([t, b]) => b - y <= H - 6 || t - y >= innerHeight)) { sc.scrollTop = y; return y; }
+  }
+  throw new Error('no scroll position ends the iPad page between lines');
+});
+
+// On the iPhone, Share is scrolled the least that shows this iPhone's steps whole above the floating tab bar, with no
+// line of words cut by the bar's top edge.
+const toClearTabBar = async (p) => p.evaluate(() => {
+  const bar = document.querySelector('.tabbar').getBoundingClientRect().top - 8;
+  const view = document.querySelector('#view-share');
+  const lines = [];
+  const walk = document.createTreeWalker(view, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
+  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); lines.push(...[...r.getClientRects()].map((x) => [x.top + scrollY, x.bottom + scrollY])); }
+  const mine = document.querySelector('#view-share .how h4 .here-tag').closest('.how').querySelector('.steps').getBoundingClientRect().bottom + scrollY;
+  const max = document.documentElement.scrollHeight - innerHeight;
+  for (let y = Math.max(0, Math.ceil(mine - bar)); y <= max; y++) {
+    if (lines.every(([t, b]) => b - y <= bar || t - y >= bar)) return window.scrollTo(0, y), y;
+  }
+  throw new Error('no scroll position shows this iPhone’s steps clear of the tab bar');
+});
+
+// Window heights measured from the app itself (fit), so a window ends at a clean break whatever the words above:
+// - fitGap(sel): the page ends in the middle of the gap between the last card and sel (the next words), never
+//   through a card.
+// - fitSheet: Get Every App's sheet ends just above its Done button, below every app and the note under them (a sheet
+//   hangs from the window's top and is 30 points shorter than the window, and at most 860 tall; all of it, Done too,
+//   is a point taller than that).
+const fitGap = (sel) => async (p) => p.evaluate((s) => {
+  const next = document.querySelector(s), top = next.getBoundingClientRect().top;
+  const cards = [...document.querySelectorAll('main .view:not([hidden]) .group, main .view:not([hidden]) .qr-card')]
+    .map((e) => e.getBoundingClientRect().bottom).filter((b) => b <= top);
+  return Math.round((Math.max(...cards) + top) / 2 + scrollY);
+}, sel);
+const fitSheet = async (p) => p.evaluate(() => {
+  const s = document.querySelector('.sheet'), sc = s.querySelector('.sheet-scroll');
+  const done = sc.querySelector('[data-act="close"]').closest('p');
+  const h = s.offsetHeight - sc.clientHeight + (done.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop) - 10;
+  if (h > 860) throw new Error(`Get Every App is ${h} points tall, more than a sheet can be`);
+  return h + s.getBoundingClientRect().top + 30;   // the gaps above (none) and below the sheet
+});
 
 /* ---------------- the stories ---------------- */
 // One idea each, in the order of the App Store pictures (and of Cowdrey One's Google Play screenshots).
@@ -201,16 +264,39 @@ const STORIES = [
   { slug: 'discover', head: 'Every app,\none place.', sub: 'All of Bradley Cowdrey’s free apps.', macW: 1320, macH: 724,
     async shoot() {} },
   { slug: 'app-page', head: 'Know each app,\ninside and out.', sub: 'What it does, what’s new, where to get it.', macW: 1044, macH: 894,
-    async shoot(p, kind) { if (kind === 'mac') await toClearStrips(p); await tap(p, `#all-apps [data-id="${kind === 'mac' ? 'bearings' : 'meridian'}"] .main`); } },
-  { slug: 'get-every-app', head: 'Get them all,\nin one go.', sub: (kind) => (kind === 'mac' ? 'One click for each app, or Install All.' : 'One tap for each app, or Get All.'),
-    async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#setup-slot [data-act="setup"]'); } },
-  { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone,\nready to open.' : `What’s on this\n${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.', macH: 904,
+    async shoot(p, kind) {
+      if (kind === 'mac') await toClearStrips(p);
+      await tap(p, `#all-apps [data-id="${kind === 'mac' ? 'bearings' : 'meridian'}"] .main`);
+      if (kind === 'ipad') { await p.waitForTimeout(900); await toCleanCut(p); }
+    } },
+  // The Mac App Store version installs nothing (most apps open on the web there), so its headline says no more than
+  // that: each app is a click away.
+  { slug: 'get-every-app', macW: 1044, fit: fitSheet, head: (kind) => (kind === 'mac' ? 'Every app,\na click away.' : 'Get them all,\nin one go.'),
+    sub: (kind) => (kind === 'mac' ? 'On the Mac App Store, or on the web.' : 'One tap for each app, or Get All.'),
+    async shoot(p, kind) { if (kind === 'mac') await toClearStrips(p); await tap(p, '#setup-slot [data-act="setup"]'); } },
+  { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone,\nready to open.' : `What’s on this\n${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.', fit: fitGap('#view-library .group-label'),
     async shoot(p) { await tab(p, 'library'); } },
-  { slug: 'share', head: 'Share any app\nin a tap.', sub: 'A QR code for any phone.', macH: 776,
-    async shoot(p) { await tab(p, 'share'); } },
+  // The Mac shows Get on Your Phone (a QR code to scan); the iPhone and iPad show Share (the code and a link to send).
+  { slug: 'share', head: (kind) => (kind === 'mac' ? 'Get it on\nyour iPhone.' : 'Share it\nwith a friend.'),
+    sub: (kind) => (kind === 'mac' ? 'Scan to get Cowdrey One on your iPhone.' : 'A QR code and a link to Cowdrey One.'), fit: fitGap('#view-share .promise'),
+    async shoot(p, kind) { await tab(p, 'share'); if (kind === 'iphone') { await p.waitForTimeout(400); await toClearTabBar(p); } } },
 ];
 const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
 
+const MAX_H = 920;   // the tallest window that fits on the MacBook's desktop, below its menu bar
+async function macHeight(story) {
+  if (story.fit) {
+    const w = story.macW || DEVICES.mac.w;
+    const p = await app('mac', MAX_H, w);
+    await story.shoot(p, 'mac');
+    await p.waitForTimeout(900);
+    const h = Math.round(await story.fit(p));
+    await p.ctx.close();
+    if (h > MAX_H) throw new Error(`mac ${story.slug}: needs a ${h}-point window, taller than the desktop`);
+    story.macH = h;
+  }
+  return story.macH || DEVICES.mac.h;
+}
 async function capture(kind, story) {
   const d = DEVICES[kind], h = (kind === 'mac' && story.macH) || d.h, w = (kind === 'mac' && story.macW) || d.w;
   const p = await app(kind, h, w);
@@ -225,8 +311,12 @@ async function capture(kind, story) {
   await p.waitForTimeout(300);
   const png = await p.screenshot({ clip: { x: 0, y: 0, width: w, height: h } });
   const ok = await p.evaluate(() => ({ native: window.CowdreyOne.native, dark: document.documentElement.dataset.theme,
-    android: /Android|Google Play/.test(document.body.innerText) || !!document.querySelector('use[href="#i-android"]') }));
-  if (ok.android) throw new Error(`${kind} ${story.slug}: shows Android, which App Store pictures must not`);
+    android: (document.body.innerText.match(/Android|Google Play|Chrome|\bEdge\b|Windows|Linux|\.dmg\b|\bDMG\b|\bAPK\b|Install All|Download All|Download \(|in Applications|TestFlight|\b[Bb]eta\b|Launchpad/) || [])[0]
+      || (document.querySelector('use[href="#i-android"]') ? 'the Android icon' : '')
+      || (document.querySelector('[href*="testflight.apple.com"]') ? 'a TestFlight link' : '') }));
+  // The App Store versions name no other platform, browser or system, download or install nothing, and show no beta
+  // or TestFlight (guideline 2.2).
+  if (ok.android) throw new Error(`${kind} ${story.slug}: shows ${ok.android}, which App Store pictures must not`);
   if (ok.native !== (kind === 'mac' ? 'mac' : 'ios') || ok.dark !== 'dark') throw new Error(`${kind} ${story.slug}: not the ${kind} app in dark mode (${JSON.stringify(ok)})`);
   if (p.errors.length) throw new Error(`${kind} ${story.slug}: ${p.errors.join('; ')}`);
   await p.ctx.close();
@@ -264,6 +354,7 @@ const FONTS = { fraunces: b64('web/fonts/fraunces.woff2'), instrument: b64('desi
         if (SHOTS && !SHOTS.includes(k + 1)) continue;
         const file = `${kind}-${k + 1}-${story.slug}.png`;
         const rawFile = RAW && path.join(RAW, `${kind}-${story.slug}.png`);
+        if (kind === 'mac') await macHeight(story);
         const png = ARG.reuse && rawFile ? fs.readFileSync(rawFile) : await capture(kind, story);
         if (rawFile && !ARG.reuse) fs.writeFileSync(rawFile, png);
         const copy = { head: heads[k], sub: text(story.sub, kind), lines: [...lines][0], file };

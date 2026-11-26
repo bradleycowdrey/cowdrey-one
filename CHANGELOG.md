@@ -25,3 +25,11 @@ every app it lists.
 - **On Google Play:** a version of the Android app for Google Play, where each app comes from its own Google
   Play page and Google Play keeps it up to date. It still sees which apps are on the phone, with Open; it never
   downloads an APK or installs an app itself, so it has no Install All. The APK on GitHub is unchanged.
+- **On the Mac App Store:** a version of the Mac app for the Mac App Store, which never downloads or installs an
+  app: Get opens the app’s Mac App Store page (Get All steps through them), and an app that isn’t on the Mac
+  App Store opens on the web. Its build leaves the installer out. Like the iPhone and iPad app, it names no other
+  platform, browser or system. The Mac app from GitHub (.dmg) is unchanged.
+- **The App Store versions** show no TestFlight, beta or Preview label, link What’s New to each app’s changelog,
+  leave updates to the App Store (no Updates · Check), and their QR code opens a page with no downloads or beta
+  notes (the web app with `?store=apple`, which the web app honours). The iPhone and iPad app’s Share steps share
+  the app, and the Mac App Store version opens Mac App Store pages in the App Store app (`macappstore://`).

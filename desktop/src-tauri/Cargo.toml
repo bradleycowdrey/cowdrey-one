@@ -15,6 +15,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# appstore: the Mac App Store version (tauri.appstore.conf.json). It leaves out every way of installing other apps:
+# the Mac .dmg installer (src/mac/install.rs) and the installer plugin, as App Review asks (guidelines 2.4.5, 2.5.2).
+[features]
+appstore = []
+
 [dependencies]
 tauri = { version = "2", features = [] }
 # App Store pages, downloads and web apps open in the system's own browser or store.

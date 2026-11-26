@@ -35,6 +35,7 @@ Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF and Golden Hour), each in its own
   | **Mac** | **Download All**: every `.dmg` at once, to drag into Applications | **Install All**: downloads each app, checks it’s signed by Bradley Cowdrey’s Apple team, and puts it in Applications. One click. |
   | **Android** | **Download All**: every APK at once, to open and install | **Install All**: hands each APK to Android, which asks “Install?” once per app. Updates to apps it installed go ahead without asking (Android 12 and later). |
   | **iPhone and iPad** | One tap per app: each opens the App Store | **Get All**: each app’s App Store page opens inside Cowdrey One in turn; tap Get, then Done. iOS never lets one app install another. |
+  | **Mac App Store version** | | **Get All**: each app on the Mac App Store opens there in turn; click Get, then come back for the next. An app that isn’t on the Mac App Store opens on the web (**Open on the web**). It never downloads or installs an app, offers a `.dmg`, counts installed apps or checks for updates (no Updates · Check row). |
 
   The Mac and Android apps also see which apps are really installed, and their versions, and offer **Open**.
 - **Only what’s really installed.** Cowdrey One never marks an app as installed because Get was tapped: opening the
@@ -51,6 +52,12 @@ Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF and Golden Hour), each in its own
   the product page, the source, issues and the Terms.
 - **Get on Your Phone / Share:** a QR code to open Cowdrey One on a phone (on a Mac, “point your phone’s camera
   here”), Share and Copy Link, and how to keep Cowdrey One on the Home Screen, the Dock or the desktop.
+- **The App Store versions** (the iPhone and iPad app, the Mac App Store version) show no TestFlight or beta
+  (guideline 2.2), link What’s New to each app’s `CHANGELOG.md` rather than its GitHub release (which lists the `.dmg`
+  and APK), and leave out “Every app on GitHub”. Their QR code and Share link open Cowdrey One’s App Store page once
+  `hubDownloads.appstore` is set in `catalog.js`; until then, the web app with `?store=apple`, which then offers no
+  `.dmg`, APK or TestFlight link for the rest of the visit. The web app without it, the Mac app from GitHub and the
+  Android apps are unchanged.
 - **Apple’s look in bradcowdrey.com’s colours:** cream, ink and clay, Fraunces for titles, the system font for
   everything else; a floating tab bar on phones and a sidebar on the Mac; sheets that slide up and pull down;
   light and dark, following the system or chosen in Settings.
@@ -71,7 +78,7 @@ One web app in `web/`, with no build step and no dependencies at run time:
 | `web/apps/shots/*.webp` | Each App Store app’s iPhone App Store screenshots, 600 px wide, from its repository: Cowdrey.PDF and Cowdrey.MD `docs/app-store`, Two Degrees `appstore/screenshots`, and Meridian and Bearings the `ci-appstore` branch their App Store workflow writes. |
 | `web/fonts/fraunces.woff2`, `web/vendor/qrcode.js` | Fraunces (SIL Open Font License) and qrcode-generator (MIT). |
 | `desktop/` | The **Tauri 2** shell that wraps `web/` as the Mac, iPhone, iPad and Android app, as for Cowdrey.MD and Cowdrey.PDF. |
-| `desktop/src-tauri/src/mac.rs` | The Mac installer: finds installed apps and versions, and installs a `.dmg` with one click. |
+| `desktop/src-tauri/src/mac.rs`, `src/mac/install.rs` | The Mac side: finds installed apps and versions and opens them; `install.rs` installs a `.dmg` with one click (not in the Mac App Store version). |
 | `desktop/src-tauri/plugins/installer` | The iPhone and Android installer: Android’s package installer (Kotlin) and the App Store page inside the app (Swift). |
 | `design/icon.svg` | The icon’s source: the family’s “C” with ONE, set exactly as Cowdrey.MD and Cowdrey.PDF set MD and PDF, in clay. |
 | `tests/e2e.cjs` | Catalog checks and end-to-end tests as an iPhone, an Android phone and a Mac, in Chromium. |
@@ -102,7 +109,7 @@ npm ci && npx playwright install chromium && npm test
 | | How | Status |
 |---|---|---|
 | **Web, and installed from the browser** | `pages.yml` publishes `web/` to https://bradleycowdrey.github.io/cowdrey-one/ (the QR code’s address, `hubUrl` in `catalog.js`). From there it installs like an app: Safari’s Share → Add to Home Screen on iPhone and iPad, Install app on Android, File → Add to Dock on the Mac. | Works once Pages publishes from Actions: Settings → Pages → Source: **GitHub Actions** (the workflow’s own token can’t turn Pages on). |
-| **Mac** | `mac-app.yml` builds a universal `.dmg`, signed and notarized with the same six Developer ID secrets as the other apps. A Mac App Store build is made with `STORE=appstore node build.mjs`: like the iPhone and iPad app, it names and shows no other platform (no Android), as App Review asks (guideline 2.3.10); no workflow builds it yet. | Needs the secrets added to this repository. |
+| **Mac** | `mac-app.yml` builds a universal `.dmg`, signed and notarized with the same six Developer ID secrets as the other apps. A Mac App Store build is made with `STORE=appstore node build.mjs`, then `npx tauri build --features appstore --config src-tauri/tauri.appstore.conf.json` (no workflow builds it yet). Like the iPhone and iPad app, it names and shows no other platform, browser or system (App Review guideline 2.3.10), and it never downloads or installs another app (2.4.5, 2.5.2): Get opens the app’s Mac App Store page, or its web version. The `appstore` feature leaves the installer out of the app (`src/mac/install.rs` and the installer plugin are never registered), its capability (`capabilities/appstore.json`) has no installer permission, and it is sandboxed with outgoing connections only (`Entitlements.appstore.plist`). A future Mac App Store workflow must keep all three, sign with an Apple Distribution certificate and a Mac App Store provisioning profile, and package the `.app` (bundle target `app`, not `dmg`) with `productbuild`. | Needs the secrets added to this repository. |
 | **iPhone and iPad** | `ios-app.yml` builds, signs and uploads to TestFlight with the App Store Connect API key, as for Cowdrey.PDF; it registers the bundle ID `com.bradcowdrey.cowdreyone` if needed. Then `testflight-public.yml` adds the build to the “Public” tester group, sends it to beta App Review and prints the public TestFlight link. | Needs the key secrets, and an App Store Connect app record (Apps, +, New App: Cowdrey One, bundle ID `com.bradcowdrey.cowdreyone`, SKU `cowdrey-one`). Listing and review notes: `docs/app-store/listing.json`; screenshots (iPhone 6.9", iPad 13" and Mac): `docs/app-store/*.png`, from `npm run screens` on the [family standard](design/app-store/README.md). |
 | **Android** | `android-app.yml` builds the APK, signed with the upload key secrets, for the GitHub release. | Needs the keystore secrets. |
 | **Google Play** | The same workflow builds the Google Play version as an App Bundle (`STORE=play`): each app comes from its Google Play page, with no APKs and no Install All. Runs started by hand on `main` send it to the closed test; `play-listing.yml` sends the store listing in `docs/play`. | Closed test, coming soon. Needs `PLAY_SERVICE_ACCOUNT_JSON` and the keystore secrets; Play Console steps and App content answers in [docs/play/README.md](docs/play/README.md). |
@@ -119,6 +126,19 @@ too), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`, plus `ANDROID_KEY_PAS
 differs from the keystore's.
 
 ## Before the first release
+
+- **Mac App Store build: native app detection.** The Mac App Store version is sandboxed, and `src/mac.rs` still
+  finds and opens apps the way the `.dmg` version does: it runs `/usr/bin/plutil` on each app’s `Info.plist`,
+  `/usr/bin/open -b` to open one, and reads `$HOME` for `~/Applications`. In the sandbox `$HOME` is the app’s
+  container (`~/Library/Containers/com.bradcowdrey.cowdreyone/Data`), so `~/Applications` is never found, and
+  launching command-line tools from a sandboxed app is something App Review questions. Before the Mac App Store
+  build is submitted, the `appstore` build should use native APIs instead (not done here, since it can only be
+  compiled and tried on a Mac): `NSWorkspace.shared.urlForApplication(withBundleIdentifier:)` to find each app by its
+  bundle ID wherever it is (no folder scan), `NSBundle(url:).infoDictionary["CFBundleShortVersionString"]` for its
+  version, `NSWorkspace.shared.openApplication(at:configuration:)` to open it, and, if a home folder is still needed,
+  the real one from `getpwuid(getuid())->pw_dir`, not `$HOME` (for example with the `objc2-app-kit` and
+  `objc2-foundation` crates, behind `#[cfg(feature = "appstore")]`). All of these work in the sandbox with no
+  extra entitlement.
 
 - **Terms:** add Cowdrey One to `TERMS.md` in cowdrey-md (Sections 6, 15 and 25), like the other apps; its code is
   under the MIT License like theirs. Then sync the copy here.

@@ -67,10 +67,17 @@
   // App Store or TestFlight) and the Mac App Store version of the Mac app (desktop/build.mjs with STORE=appstore adds
   // store.js, which sets COWDREY_STORE). The Mac app from GitHub (.dmg) and the web keep every platform.
   const APPLE_STORE = NATIVE === 'ios' || (NATIVE === 'mac' && window.COWDREY_STORE === 'appstore');
+  if (APPLE_STORE) document.documentElement.classList.add('apple-store');
   const SHOWN = APPLE_STORE ? ORDER.filter((p) => p !== 'android') : ORDER;
   // Words about the apps (their features, the About page), with Android taken out of a list of platforms in the App
   // Store versions: "Mac, iPhone, iPad and Android" becomes "Mac, iPhone and iPad".
-  const OTHER = /\b(?:Android|Google Play)\b/;
+  // Release notes in What's New also lose any line about another platform, a browser or a download file.
+  const OTHER = /\b(?:Android|Google Play|Windows|Linux|Chrome|Edge|APK)\b|\.dmg\b|\bDMG\b/;
+  // The Mac App Store version of the Mac app. An app from the Mac App Store may not download or install other apps
+  // (App Review guidelines 2.4.5 and 2.5.2): there Get opens an app's page on the Mac App Store, or, for an app that
+  // isn't on the Mac App Store, its web version, in the default browser. Never a .dmg, and nothing is installed here
+  // (its build leaves the installer out: desktop/src-tauri, the appstore feature).
+  const MAS = NATIVE === 'mac' && window.COWDREY_STORE === 'appstore';
   function apple(text) {
     if (!APPLE_STORE) return text;
     return String(text)
@@ -84,11 +91,28 @@
   // Google Play doesn't let an app install other apps or download APKs, so there every Android app comes from its
   // own Google Play page, and Play keeps it up to date. The Android app from GitHub installs APKs, as before.
   const PLAY = NATIVE === 'android' && window.COWDREY_STORE === 'play';
+  // The web app opened from an App Store version's QR code or Share link (?store=apple): it offers no downloads
+  // (.dmg, APK) and no beta, so what App Review sees behind the link is the same as in the app: App Store pages and
+  // web apps. Kept for the visit, as a person moves between tabs and app pages.
+  const NODL = !NATIVE && (() => {
+    let on = new URLSearchParams(location.search).get('store') === 'apple';
+    try { if (on) sessionStorage.setItem('cowdrey-one.store', 'apple'); else on = sessionStorage.getItem('cowdrey-one.store') === 'apple'; } catch (e) { /* no storage: the link's own ?store=apple still counts */ }
+    return on;
+  })();
+  // Where the App Store versions send people: the QR code, Share and Copy Link. Cowdrey One's own App Store page once
+  // it has one (catalog hubDownloads.appstore), else the web app with ?store=apple. Elsewhere, the web app as before.
+  const hubLink = (app) => {
+    if ((APPLE_STORE || NODL) && !app && C.hubDownloads.appstore) return C.hubDownloads.appstore;
+    const q = [APPLE_STORE || NODL ? 'store=apple' : '', app ? 'app=' + app : ''].filter(Boolean).join('&');
+    return C.hubUrl + (q ? '?' + q : '');
+  };
+  // Lines about TestFlight or a beta, left out of the App Store versions' words (guideline 2.2).
+  const BETA = /TestFlight|\bbeta\b/i;
   const playUrl = (a) => 'https://play.google.com/store/apps/details?id=' + encodeURIComponent(a.bundle);
   const playHere = () => PLAY && plat() === 'android';
   // The ways to get an app that this device's app can carry out itself.
   const canNative = (o) => !!o && !!NATIVE && o.p === NATIVE &&
-    ((NATIVE === 'mac' && o.kind === 'dmg') || (NATIVE === 'android' && !PLAY && o.kind === 'apk') || (NATIVE === 'ios' && o.kind === 'appstore'));
+    ((NATIVE === 'mac' && !MAS && o.kind === 'dmg') || (NATIVE === 'android' && !PLAY && o.kind === 'apk') || (NATIVE === 'ios' && o.kind === 'appstore'));
   const storeId = (url) => (String(url).match(/\/id(\d+)/) || [])[1];
   // Whether Cowdrey One can see if an app is on this device. The Mac and Android apps see every app they list. iOS
   // doesn't let one app see which others are installed: the iPhone app can only ask whether an app's own link (its
@@ -106,8 +130,18 @@
     web: { how: 'In your browser', btn: 'Open', toast: (n) => `Opening ${n}.` },
   };
   // In the Google Play app, an app with an Android version is got from its Google Play page, never as an APK.
-  const options = (a, p) => (PLAY && p === 'android' && a.platforms.android && a.bundle
-    ? [{ kind: 'play', url: playUrl(a) }] : (a.platforms[p] && a.platforms[p].get) || []);
+  // In the apps from Apple's App Stores, the Mac's only way is the Mac App Store: an app that isn't there has no Mac
+  // option (its .dmg is never offered), so Get opens its web version.
+  const options = (a, p) => {
+    if (PLAY && p === 'android' && a.platforms.android && a.bundle) return [{ kind: 'play', url: playUrl(a) }];
+    let list = (a.platforms[p] && a.platforms[p].get) || [];
+    // No beta in the App Store versions (guideline 2.2), nor behind their link (NODL), which offers no download either.
+    if (APPLE_STORE || NODL) list = list.filter((o) => o.kind !== 'testflight');
+    if (NODL) list = list.filter((o) => o.kind !== 'dmg' && o.kind !== 'apk');
+    return APPLE_STORE && p === 'mac' ? list.filter((o) => o.kind === 'macappstore') : list;
+  };
+  // The platforms an app is shown on: in the App Store versions, the Mac only when it's on the Mac App Store.
+  const offered = (a, p) => !!a.platforms[p] && options(a, p).length > 0;
   function best(a, p = plat()) {
     const list = options(a, p);
     const o = (p === NATIVE && list.find((x) => canNative(Object.assign({ p }, x)))) || list[0];
@@ -134,11 +168,12 @@
     const o = best(a);
     if (!o) return { s: 'none' };
     const inst = mine(a);
-    if (o.kind === 'web') return { s: 'open', o, inst };
+    // The Mac App Store version opens an app it sees on this Mac, even one it would otherwise send to the web.
+    if (o.kind === 'web' && !(MAS && inst && plat() === 'mac')) return { s: 'open', o, inst };
     if (inst && inst.k !== 'web') {
       // The App Stores and TestFlight update their apps themselves; downloads (.dmg, APK) are shown here. Not in the
-      // Google Play app, which leaves updates to Google Play.
-      if ((inst.k === 'dmg' || (inst.k === 'apk' && !PLAY)) && cmpV(latest(a), inst.v) > 0) return { s: 'update', o, inst };
+      // Google Play app, which leaves updates to Google Play, nor in the Mac App Store version, which installs nothing.
+      if (((inst.k === 'dmg' && !MAS) || (inst.k === 'apk' && !PLAY)) && cmpV(latest(a), inst.v) > 0) return { s: 'update', o, inst };
       return { s: 'done', o, inst };
     }
     return { s: 'get', o, inst };
@@ -146,14 +181,18 @@
   const updates = () => APPS.filter((a) => state(a).s === 'update');
   // How many of the apps made for this device are on it: only where Cowdrey One can see every one of them (the Mac
   // and Android apps). Elsewhere there's no count, because it would be a guess.
+  // The Mac App Store version counts nothing: most of the apps it lists open on the web there, so a count of what's
+  // installed would never match the list.
   function tally() {
+    if (MAS) return null;
     const list = APPS.filter((a) => { const o = best(a); return o && o.kind !== 'web'; });
     if (!list.length || !list.every(sees)) return null;
     return { n: list.filter((a) => mine(a)).length, total: list.length };
   }
 
   /* ---------- Buttons ---------- */
-  function pill(a, variant = '') {
+  // long: the label in full where there's room (an app's page), "Open on the web" rather than "Open".
+  function pill(a, variant = '', long = false) {
     const st = state(a);
     if (st.s === 'none') return '';
     const n = esc(a.name);
@@ -162,19 +201,24 @@
     if (st.s === 'done') {
       return `<button class="pill ${variant}" data-pill="${a.id}" data-act="launch" data-id="${a.id}" aria-label="Open ${n}, on ${esc(thisDevice())}">Open</button>`;
     }
-    const label = st.s === 'update' ? 'Update' : KIND[st.o.kind].btn;
+    const onWeb = MAS && st.o.fallback;
+    const label = st.s === 'update' ? 'Update' : onWeb && long ? 'Open on the web' : KIND[st.o.kind].btn;
     const cls = st.s === 'update' ? 'solid' : '';
-    return `<a class="pill ${cls} ${variant}" data-pill="${a.id}" data-act="get" data-id="${a.id}" href="${esc(st.o.url)}"${linkTarget(st.o)} aria-label="${label} ${n}${st.o.fallback ? ', in your browser' : ''}">${label}</a>`;
+    return `<a class="pill ${cls} ${variant}" data-pill="${a.id}" data-act="get" data-id="${a.id}"${long ? ' data-long="1"' : ''} href="${esc(st.o.url)}"${linkTarget(st.o)} aria-label="${onWeb ? `Open ${n} on the web` : `${label} ${n}${st.o.fallback ? ', in your browser' : ''}`}">${label}</a>`;
   }
   const pillWrap = (a, variant = '') => {
     const st = state(a);
-    const note = st.s === 'busy' ? (STAGE[st.stage] || '') : st.o && st.o.fallback ? 'Web app' : st.s === 'update' ? 'v' + esc(latest(a)) : '';
+    const note = st.s === 'busy' ? (STAGE[st.stage] || '') : st.o && st.o.fallback && st.s !== 'done' ? (MAS ? 'On the web' : 'Web app') : st.s === 'update' ? 'v' + esc(latest(a)) : '';
     return `<span class="pill-wrap">${pill(a, variant)}${note ? `<small>${note}</small>` : ''}</span>`;
   };
   // Downloads load in place (the page stays); stores and web apps open beside this one.
   const linkTarget = (o) => (o.kind === 'apk' || o.kind === 'dmg' ? '' : ' target="_blank" rel="noopener"');
 
+  // The Mac App Store version opens a Mac App Store page with its macappstore:// link, so it opens in the App Store
+  // app itself (an https link to apps.apple.com would open the browser first).
+  const masLink = (url) => { const id = storeId(url); return id ? `macappstore://apps.apple.com/app/id${id}` : url; };
   function openUrl(url, kind) {
+    if (MAS && kind === 'macappstore') url = masLink(url);
     const T = window.__TAURI__;
     if (T && T.opener && T.opener.openUrl) return T.opener.openUrl(url);
     if (T && T.core && T.core.invoke) return T.core.invoke('plugin:opener|open_url', { url });
@@ -193,7 +237,7 @@
     if (!byLink) { if (e) e.preventDefault(); openUrl(o.url, o.kind); }
     // Opening the store or starting a download doesn't install anything, so nothing is marked as installed here.
     const p = o.fallback ? plat() : o.p;
-    let msg = KIND[o.kind].toast(a.name);
+    let msg = MAS && o.kind === 'web' ? `Opening ${a.name} on the web.` : KIND[o.kind].toast(a.name);
     if (o.kind === 'web' && (detected.p === 'ios' || detected.p === 'android') && p !== 'web') {
       msg = `Opening ${a.name}. To keep it, add it to your Home Screen from the browser’s ${detected.p === 'ios' ? 'Share' : '⋮'} menu.`;
     }
@@ -273,6 +317,11 @@
   // Android phone: every download at once. On an iPhone in a browser, the App Store takes one app at a time.
   function bulkPlan() {
     const p = plat();
+    // The Mac App Store version: each app on the Mac App Store, one page at a time (stepStore).
+    if (MAS && p === 'mac') {
+      return { kind: 'store', label: 'Get All',
+        list: APPS.filter((a) => { const s = state(a); return s.s === 'get' && s.o.kind === 'macappstore'; }) };
+    }
     // Google Play installs one app at a time, from its own page: the Google Play app has no Install All.
     if (PLAY && p === 'android') return { kind: 'none', list: [] };
     if (NATIVE && p === NATIVE) {
@@ -308,9 +357,27 @@
     });
     toast(`Downloading ${plan.list.length} ${plan.list.length === 1 ? 'app' : 'apps'}. Your browser may ask to allow several downloads.`);
   }
+  // The Mac App Store version's Get All steps through the apps' Mac App Store pages, as the iPhone app does: each
+  // click opens the next one in the App Store (which can't be shown inside the app on a Mac).
+  let storeSteps = null;   // { list, i }: the pages still to open
+  function stepStore(plan) {
+    if (!storeSteps) storeSteps = { list: plan.list.slice(), i: 0 };
+    const a = storeSteps.list[storeSteps.i++];
+    if (a) { const o = best(a); openUrl(o.url, o.kind); }
+    const last = storeSteps.i >= storeSteps.list.length;
+    if (last) storeSteps = null;
+    toast(a ? `Opening ${a.name} on the Mac App Store.${last ? '' : ' Click Get there, then come back here for the next.'}` : 'Every app on the Mac App Store is on this Mac.');
+    refresh();
+  }
+  function bulkLabel(plan) {
+    if (storeSteps) { const s = storeSteps; return `Next: ${s.list[s.i].name} (${s.i + 1} of ${s.list.length})`; }
+    if (plan.kind === 'store' && plan.list.length === 1) return `Get ${plan.list[0].name} on the Mac App Store`;
+    return `${plan.label} (${plan.list.length})`;
+  }
   function runBulk() {
     const plan = bulkPlan();
-    if (plan.kind === 'download') downloadAll(plan);
+    if (plan.kind === 'store') stepStore(plan);
+    else if (plan.kind === 'download') downloadAll(plan);
     else if (plan.kind === 'native') runNative(plan.list, NATIVE === 'ios' ? 'Opening' : 'Installing');
   }
 
@@ -394,8 +461,11 @@
   /* ---------- Discover ---------- */
   const brand = () => `<div class="brandbar"><img src="icon-192.png" alt=""><span>Cowdrey One</span></div>`;
   const dateLine = () => new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const platIcons = (a) => `<span class="plats" aria-label="On ${SHOWN.filter((p) => a.platforms[p]).map((p) => PLAT[p].name).join(', ')}">${SHOWN.filter((p) => a.platforms[p]).map((p) => icon(PLAT[p].icon, p === plat() ? 'here' : '')).join('')}</span>`;
-  const tag = (a) => (a.status ? `<span class="status-tag">${esc(a.status)}</span>` : '');
+  const platIcons = (a) => `<span class="plats" aria-label="On ${SHOWN.filter((p) => offered(a, p)).map((p) => PLAT[p].name).join(', ')}">${SHOWN.filter((p) => offered(a, p)).map((p) => icon(PLAT[p].icon, p === plat() ? 'here' : '')).join('')}</span>`;
+  // An app's label ("New", "Preview"). The App Store versions leave out "Preview", which reads as a beta there
+  // (guideline 2.2).
+  const statusOf = (a) => (APPLE_STORE && /^preview$/i.test(a.status || '') ? '' : a.status || '');
+  const tag = (a) => (statusOf(a) ? `<span class="status-tag">${esc(statusOf(a))}</span>` : '');
 
   function appRow(a, opts = {}) {
     const sub = opts.sub != null ? opts.sub : esc(a.subtitle);
@@ -412,7 +482,7 @@
     // app's headline and a drawn glimpse of it.
     const face = a.shots
       ? `<img class="feature-shot" src="${shotUrl(a, 1)}" alt="" ${i ? 'loading="lazy" ' : ''}decoding="async">`
-      : `<div class="feature-top"><p class="eyebrow">${esc(a.status || a.category)}</p><h3>${esc(a.headline)}</h3></div>
+      : `<div class="feature-top"><p class="eyebrow">${esc(statusOf(a) || a.category)}</p><h3>${esc(a.headline)}</h3></div>
       <div class="art">${art(a)}</div>`;
     return `<div class="feature${a.shots ? ' has-shot' : ''}" style="${sky(a)}" data-act="open-app" data-id="${a.id}" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${APPS.length}: ${esc(a.name)}${a.shots ? '' : '. ' + esc(a.headline)}">
       ${face}
@@ -422,9 +492,10 @@
   function setupCard() {
     const c = tally();
     if (!c) {
-      // Cowdrey One can't see what's on this device, so no count: just the way to get them all.
+      // Cowdrey One can't see what's on this device, so no count: just the way to get them all. The Mac App Store
+      // version says where they come from, since most open on the web there.
       return `<div class="setup-stack" aria-hidden="true">${APPS.slice(0, 3).map((a) => appIcon(a)).join('')}</div>
-        <div class="main"><h3>Get every app on ${esc(thisDevice())}</h3><p>${APPS.length} free apps, one tap each.</p></div>
+        <div class="main"><h3>${MAS && plat() === 'mac' ? 'Every app, on the Mac App Store or the web' : `Get every app on ${esc(thisDevice())}`}</h3><p>${APPS.length} free apps, one ${NATIVE === 'mac' ? 'click' : 'tap'} each.</p></div>
         <button class="pill solid" data-act="setup">Get All</button>`;
     }
     const { n, total } = c, r = 27, len = 2 * Math.PI * r;
@@ -484,15 +555,18 @@
     // Only apps Cowdrey One has seen on this device are listed as on it. Where it can see every app (the Mac and
     // Android apps) the rest are "not yet" on it; elsewhere it can't tell, so they're just the other apps.
     const got = APPS.filter((a) => mine(a)), rest = APPS.filter((a) => !mine(a)), ups = updates(), c = tally();
-    const viaLine = (a) => { const i = mine(a); return `${i.v ? `Version ${esc(i.v)} · ` : ''}${esc(KIND[i.k].how)}`; };
+    // The Mac App Store version doesn't say where an app it sees came from unless it's the Mac App Store.
+    const viaLine = (a) => { const i = mine(a); const how = MAS && i.k !== 'macappstore' ? 'On this Mac' : KIND[i.k].how; return `${i.v ? `Version ${esc(i.v)} · ` : ''}${esc(how)}`; };
     const seen = APPS.filter(sees), viaPlay = playHere();
     const foot = c
       ? viaPlay ? `Cowdrey One sees which apps are installed on ${esc(thisDevice())}. Google Play keeps them up to date.`
         : `Cowdrey One sees which apps are installed on ${esc(thisDevice())}, and checks GitHub for new versions.`
+      : MAS && plat() === 'mac'
+        ? `Cowdrey One sees which of these apps are on ${esc(thisDevice())}, and opens them. Get opens an app’s page on the Mac App Store, which keeps it up to date; an app that isn’t on the Mac App Store yet opens on the web.`
       : NATIVE === 'ios' && plat() === 'ios'
         ? `iOS doesn’t let one app see which others are installed. Cowdrey One can tell only for ${seen.length ? esc(seen.map((a) => a.name).join(' and ')) : 'apps that open from a link'}; for the rest, Get opens the App Store, which shows Open when the app is already on ${esc(thisDevice())}. The App Store keeps every app up to date.`
         : `A browser can’t see which apps are installed, so Get always brings the newest version. The App Store keeps its apps up to date.`;
-    const platSelect = `<select data-act="platform" aria-label="Show downloads for">${[['auto', `Automatic (${detected.device})`]].concat(SHOWN.map((p) => [p, PLAT[p].name])).map(([v, t]) => `<option value="${v}"${prefs.platform === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+    const platSelect = `<select data-act="platform" aria-label="${APPLE_STORE ? 'Show apps for' : 'Show downloads for'}">${[['auto', `Automatic (${detected.device})`]].concat(SHOWN.map((p) => [p, PLAT[p].name])).map(([v, t]) => `<option value="${v}"${prefs.platform === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
     $('#view-library').innerHTML = `
       ${brand()}<header class="large-head"><div><p class="eyebrow">On ${esc(thisDevice())}</p><h1 class="large-title" id="t-library">Library</h1></div></header>
       ${c ? `<div class="reading"><span class="big">${c.n}</span><span class="of">of ${c.total} apps</span></div>
@@ -510,10 +584,10 @@
       ${rest.length ? `<div class="section-head"><h2>${c ? `Not Yet on ${esc(deviceName())}` : got.length ? 'More Apps' : 'Every App'}</h2></div><div class="group">${rest.map((a) => appRow(a)).join('')}</div>` : ''}
       <p class="group-label">Settings</p>
       <div class="group">
-        <div class="row pref"><span class="glyph">${icon('device')}</span><span class="main"><span class="title" style="font-weight:400">Show downloads for</span></span><span class="value">${esc(prefs.platform === 'auto' ? 'Automatic' : PLAT[prefs.platform].name)}</span>${icon('chevron', 'chev')}${platSelect}</div>
+        <div class="row pref"><span class="glyph">${icon('device')}</span><span class="main"><span class="title" style="font-weight:400">${APPLE_STORE ? 'Show apps for' : 'Show downloads for'}</span></span><span class="value">${esc(prefs.platform === 'auto' ? 'Automatic' : PLAT[prefs.platform].name)}</span>${icon('chevron', 'chev')}${platSelect}</div>
         <div class="row pref"><span class="glyph" style="background:#5B5FC7">${icon('moon')}</span><span class="main"><span class="title" style="font-weight:400">Appearance</span></span>
           <span class="segmented" role="group" aria-label="Appearance">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, t]) => `<button data-act="appearance" data-v="${v}" aria-pressed="${prefs.appearance === v}">${t}</button>`).join('')}</span></div>
-        ${PLAY ? '' : `<div class="row pref"><span class="glyph" style="background:#2E8B57">${icon('refresh')}</span><span class="main"><span class="title" style="font-weight:400">Updates</span><span class="sub">${checkedLine()}</span></span><button class="pill" data-act="check" ${checking ? 'disabled' : ''}>Check</button></div>`}
+        ${PLAY || APPLE_STORE ? '' : `<div class="row pref"><span class="glyph" style="background:#2E8B57">${icon('refresh')}</span><span class="main"><span class="title" style="font-weight:400">Updates</span><span class="sub">${checkedLine()}</span></span><button class="pill" data-act="check" ${checking ? 'disabled' : ''}>Check</button></div>`}
         <button class="row pref tap" data-act="about"><span class="glyph" style="background:#6B6760">${icon('info')}</span><span class="main"><span class="title" style="font-weight:400">About Cowdrey One</span></span><span class="value">${VERSION}</span>${icon('chevron', 'chev')}</button>
       </div>
       <p class="group-foot">${foot}</p>
@@ -531,7 +605,7 @@
     return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img" aria-label="QR code for ${esc(text)}"><path d="${d}" fill="#0E0D0B"/></svg>`;
   }
   function renderShare() {
-    const url = C.hubUrl, desk = !isPhone();
+    const url = hubLink(), desk = !isPhone();
     const how = {
       ios: { t: 'iPhone and iPad', s: ['Open this page in Safari.', 'Tap Share (the square with an arrow), then Add to Home Screen.', 'Tap Add. Cowdrey One opens full screen, like any app.'],
         extra: C.hubDownloads.ios ? `<a class="link-button" href="${esc(C.hubDownloads.ios)}" target="_blank" rel="noopener">Or get the iPhone app</a>` : '' },
@@ -542,14 +616,28 @@
         extra: C.hubDownloads.mac ? `<a class="link-button" href="${esc(C.hubDownloads.mac)}">Or download the Mac app</a>` : '' },
       web: { t: 'Windows and other computers', s: ['In Chrome or Edge, click Install in the address bar.', 'Cowdrey One opens in its own window.'] },
     };
+    // The App Store versions name no other browser or system, and offer no download.
+    // No TestFlight link (guideline 2.2): the iPhone app only from its App Store page, once it has one.
+    if (APPLE_STORE) {
+      how.ios.extra = C.hubDownloads.appstore ? `<a class="link-button" href="${esc(C.hubDownloads.appstore)}" target="_blank" rel="noopener" data-act="ext">Or get Cowdrey One on the App Store</a>` : '';
+      how.mac = MAS
+        ? { t: 'Mac', s: ['Cowdrey One is in your Applications folder.', 'To keep it in the Dock, Control-click its icon there, then choose Options › Keep in Dock.'] }
+        : { t: 'Mac', s: ['Get Cowdrey One on the Mac App Store.', 'Then every app is a click away, on the Mac App Store or the web.'] };
+      // The iPhone and iPad app is already here: its steps share it, rather than add a web page to the Home Screen.
+      if (NATIVE === 'ios') how.ios.s = ['Tap Share above to send Cowdrey One to a friend, or let them scan the code.', 'It opens Cowdrey One on their iPhone or iPad, with every app one tap away.'];
+      how.web = { t: 'Any browser', s: ['Open this page in your browser.', 'Bookmark it, to keep every app one click away.'] };
+    }
+    // Behind an App Store version's link: no download, and no beta.
+    if (NODL) { how.ios.extra = C.hubDownloads.appstore ? `<a class="link-button" href="${esc(C.hubDownloads.appstore)}" target="_blank" rel="noopener">Or get the iPhone app</a>` : ''; how.android.extra = ''; how.mac.extra = ''; }
     const order = [detected.p].concat(SHOWN.filter((p) => p !== detected.p));
     $('#view-share').innerHTML = `
       ${brand()}<header class="large-head"><div><p class="eyebrow">Bradley Cowdrey’s apps</p><h1 class="large-title" id="t-share">${desk ? 'Get on Your Phone' : 'Share'}</h1></div></header>
       <section class="qr-card"><div class="qr">${qrSvg(url)}<img src="icon-192.png" alt=""></div>
         <div><h3>${desk ? 'Point your phone’s camera here' : 'Share every app'}</h3>
-          <p>${desk ? `Scan this with your ${APPLE_STORE ? 'iPhone' : 'iPhone or Android phone'} to open Cowdrey One there. Then each app is one tap away, with the right download for that phone.` : 'Show this code to a friend, or send the link. It opens every app with the right download for their phone or computer.'}</p>
+          <p>${APPLE_STORE ? (desk ? 'Scan this with your iPhone to open Cowdrey One there. Then each app is one tap away.' : 'Show this code to a friend, or send the link. It opens Cowdrey One, with every app one tap away.')
+            : desk ? 'Scan this with your iPhone or Android phone to open Cowdrey One there. Then each app is one tap away, with the right download for that phone.' : 'Show this code to a friend, or send the link. It opens every app with the right download for their phone or computer.'}</p>
           <div class="actions"><button class="button" data-act="share-hub">${icon('share')}Share</button><button class="button quiet" data-act="copy-hub">${icon('link')}Copy Link</button></div>
-          <div class="url">${esc(url)}</div></div></section>
+          <div class="url">${esc(url).replace('?', '<wbr>?')}</div></div></section>
       <p class="group-label">Keep Cowdrey One on your devices</p>
       <div class="group">${standalone && !isTauri ? `<div class="how"><h4>${icon('check-circle')}Cowdrey One is installed on ${esc(thisDevice())}</h4><p class="sub" style="color:var(--ink-2);font-size:15px;margin:6px 0 10px">Open it from your ${detected.p === 'mac' ? 'Dock' : 'Home Screen'} any time.</p></div>` : ''}
         ${order.map((p) => `<div class="how"><h4>${icon(PLAT[p].icon)}${how[p].t}${p === detected.p ? `<span class="here-tag">This ${esc(detected.device)}</span>` : ''}</h4>
@@ -571,6 +659,7 @@
       if (/^#{1,6}\s*(downloads?|install|installation|assets|files|checksums?|sha-?256|verify)/i.test(l)) break;
       if (/^#{1,6}\s*what.?s new\b/i.test(l)) continue;   // the section is already called What's New
       if (APPLE_STORE && OTHER.test(l)) continue;   // a note about the Android app, which the App Store versions leave out
+      if ((APPLE_STORE || NODL) && BETA.test(l)) continue;   // nor a beta, there or behind their link (guideline 2.2)
       if (/^\|/.test(l) || /^(sha-?256|sha1|md5)\b/i.test(l) || /^<?https?:\/\/\S+>?$/.test(l) || /^-{3,}$/.test(l) || /^!\[/.test(l)) continue;
       out.push(raw);
     }
@@ -607,7 +696,7 @@
         const seenHere = p === plat() && !!k && (k === o.kind || (k === 'play' && o.kind === 'apk') || (k === 'apk' && o.kind === 'play'));
         const btn = seenHere
           ? `<button class="pill" data-act="launch" data-id="${a.id}" aria-label="Open ${esc(a.name)}, on ${esc(thisDevice())}">Open</button>`
-          : `<a class="pill${here ? ' solid' : ''}" data-act="get-opt" data-id="${a.id}" data-p="${p}" data-i="${i}" href="${esc(o.url)}"${linkTarget(o)}>${KIND[o.kind].btn}</a>`;
+          : `<a class="pill${here ? ' solid' : ''}" data-act="get-opt" data-id="${a.id}" data-p="${p}" data-i="${i}" href="${esc(o.url)}"${linkTarget(o)}>${MAS && o.kind === 'web' ? 'Open on the web' : KIND[o.kind].btn}</a>`;
         rows.push(`<div class="row get-row${here ? ' here' : ''}"><span class="glyph">${icon(o.kind === 'testflight' ? 'flask' : PLAT[p].icon)}</span>
           <span class="main"><span class="title">${o.kind === 'testflight' ? PLAT[p].name + ' beta' : PLAT[p].name}${here ? `<span class="here-tag">${prefs.platform === 'auto' && detected.p !== 'web' ? 'This ' + esc(detected.device) : 'For you'}</span>` : ''}</span>
           <span class="sub">${esc(KIND[o.kind].how)} · ${esc(pl.req)}</span></span>${btn}</div>`);
@@ -620,15 +709,20 @@
     const v = latest(a);
     const head = `<div class="section-head"><h2>What’s New</h2><span class="note">Version ${esc(v)}${r && r.date ? ' · ' + fmtDay(r.date) : ''}</span></div>`;
     const text = r && r.notes ? releaseText(r.notes) : '';
+    const log = a.changelog || (a.repo ? `https://github.com/${a.repo}/blob/main/CHANGELOG.md` : '');
+    // The App Store versions (and their link) point at the app's changelog, not its GitHub release, which lists the
+    // .dmg and APK files (guidelines 2.4.5, 2.3.10). Elsewhere, the release, as before.
+    const notesLink = APPLE_STORE || NODL
+      ? (log ? `<p style="margin:8px 0 0"><a href="${esc(log)}" target="_blank" rel="noopener" data-act="ext">Every change, on GitHub</a></p>` : '')
+      : `<p style="margin:8px 0 0"><a href="${esc((r && r.url) || `https://github.com/${a.repo}/releases`)}" target="_blank" rel="noopener" data-act="ext">Release notes on GitHub</a></p>`;
     if (plain(text)) {
       return `${head}<div class="notes" id="notes">${mdLite(text.slice(0, 1600))}</div>
-        <p style="margin:8px 0 0"><a href="${esc(r.url || `https://github.com/${a.repo}/releases`)}" target="_blank" rel="noopener" data-act="ext">Release notes on GitHub</a></p>`;
+        ${notesLink}`;
     }
-    const log = a.changelog || (a.repo ? `https://github.com/${a.repo}/blob/main/CHANGELOG.md` : '');
     return `${head}<p class="notes">${log ? `See every change <a href="${esc(log)}" target="_blank" rel="noopener" data-act="ext">on GitHub</a>.` : ''}</p>`;
   }
   function appPage(a) {
-    const plats = SHOWN.filter((p) => a.platforms[p]);
+    const plats = SHOWN.filter((p) => offered(a, p));
     // The top of the page: the app's App Store screenshots in a row you swipe, as on the App Store; or, for an app
     // that isn't there, the drawn glimpse.
     const top = a.shots
@@ -637,10 +731,10 @@
       : `<div class="art">${art(a)}</div>`;
     return `<div class="hero${a.shots ? ' has-shots' : ''}" style="${sky(a)}">${top}
         <div class="hero-id">${appIcon(a)}<div><h2 id="sheet-title">${esc(a.name)}</h2><p>${esc(a.subtitle)}</p>
-          <div class="hero-actions">${pill(a, 'light')}<button class="round" data-act="share-app" data-id="${a.id}" aria-label="Share ${esc(a.name)}">${icon('share')}</button></div></div></div></div>
+          <div class="hero-actions">${pill(a, 'light', true)}<button class="round" data-act="share-app" data-id="${a.id}" aria-label="Share ${esc(a.name)}">${icon('share')}</button></div></div></div></div>
       <div class="sheet-pad">
         <div class="facts">
-          <div class="fact"><div class="k">Version</div><div class="v">${esc(latest(a))}</div><div class="c">${a.status ? esc(a.status) : 'Latest'}</div></div>
+          <div class="fact"><div class="k">Version</div><div class="v">${esc(latest(a))}</div><div class="c">${statusOf(a) ? esc(statusOf(a)) : 'Latest'}</div></div>
           <div class="fact"><div class="k">Price</div><div class="v">Free</div><div class="c">Forever</div></div>
           <div class="fact"><div class="k">Platforms</div><div class="v">${plats.length}</div><div class="c">${plats.filter((p) => SHOWN.includes(p)).map((p) => ({ ios: 'iOS', android: 'Android', mac: 'Mac', web: 'Web' })[p]).join(' · ')}</div></div>
           <div class="fact"><div class="k">Category</div><div class="v">${icon({ Weather: 'cloud', Navigation: 'compass', Productivity: 'clock', Writing: 'doc', Documents: 'doc' }[a.category] || 'stack')}</div><div class="c">${esc(a.category)}</div></div>
@@ -653,7 +747,9 @@
         <ul class="bullets">${a.features.map((f) => `<li>${esc(apple(f))}</li>`).join('')}</ul>
         <div class="section-head"><h2>Get It On</h2></div>
         <div class="group" id="get-rows">${getRows(a)}</div>
-        <p class="group-foot">${a.platforms[plat()] ? '' : `${esc(a.name)} isn’t made for ${esc(PLAT[plat()].name)} yet. The web version works in any browser.`}</p>
+        <p class="group-foot">${offered(a, plat()) ? '' : (APPLE_STORE || NODL) && plat() === 'mac' && a.platforms.mac ? `${esc(a.name)} isn’t on the Mac App Store yet. Open it on the web, in any browser.`
+          : NODL && a.platforms[plat()] ? `Here, ${esc(a.name)} opens on the web, in any browser.`
+          : `${esc(a.name)} isn’t made for ${esc(PLAT[plat()].name)} yet. The web version works in any browser.`}</p>
         <div class="section-head"><h2>Information</h2></div>
         <div class="group">
           <div class="row info"><span class="k">Developer</span><span class="v">Bradley Cowdrey</span></div>
@@ -681,20 +777,21 @@
   /* ---------- Get every app ---------- */
   function setupPage() {
     const p = plat(), c = tally(), plan = bulkPlan();
-    const bulkTip = plan.kind === 'native' ? {
+    const bulkTip = plan.kind === 'store' ? 'Each app’s Mac App Store page opens in turn: click Get there, then come back here for the next.'
+      : plan.kind === 'native' ? {
       mac: 'Cowdrey One downloads each app, checks it’s signed by Bradley Cowdrey, and puts it in Applications.',
       android: 'Android asks “Install?” once for each app. On Android 12 and later, apps installed here update without asking.',
       ios: 'Each app’s App Store page opens here in turn: tap Get, then Done for the next.',
     }[NATIVE] : p === 'mac'
       ? 'Your browser may ask to allow several downloads. Then open each .dmg in Downloads and drag the app into Applications.'
       : 'Your browser may ask to allow several downloads. Then open each APK from Downloads and tap Install.';
-    const bulk = plan.list.length || bulkRunning ? `<p style="margin:16px 0 0"><button class="button wide" data-act="bulk"${bulkRunning ? ' disabled' : ''}>${icon('down')}${bulkRunning ? esc(bulkRunning) : `${plan.label} (${plan.list.length})`}</button></p>
+    const bulk = plan.list.length || bulkRunning ? `<p style="margin:16px 0 0"><button class="button wide" data-act="bulk"${bulkRunning ? ' disabled' : ''}>${plan.kind === 'store' ? '' : icon('down')}${bulkRunning ? esc(bulkRunning) : esc(bulkLabel(plan))}</button></p>
         <p class="group-foot">${esc(bulkTip)}</p>` : '';
     const tip = {
       ios: NATIVE === 'ios' ? 'Tap Get All, or Get on any app.' : 'Each one opens the App Store: tap Get there, then come back here for the next.',
-      android: PLAY ? 'Each one opens its Google Play page: tap Install there, then come back here for the next.'
+      android: NODL ? 'Each one opens in a new tab. To keep one, add it to your Home screen.' : PLAY ? 'Each one opens its Google Play page: tap Install there, then come back here for the next.'
         : NATIVE === 'android' ? 'Tap Install All, or Get on any app.' : 'Each one downloads an APK. The first time, Android asks you to allow your browser to install apps: allow it, then tap Install for each.',
-      mac: NATIVE === 'mac' ? 'Tap Install All, or Get on any app.' : 'Each one downloads a .dmg to Downloads. Open it and drag the app into Applications.',
+      mac: MAS ? 'Get opens an app’s page on the Mac App Store.' : NODL ? 'Get opens an app’s page on the Mac App Store, or its web version.' : NATIVE === 'mac' ? 'Tap Install All, or Get on any app.' : 'Each one downloads a .dmg to Downloads. Open it and drag the app into Applications.',
       web: 'Each one opens in a new tab. On a phone, add each to your Home Screen.',
     }[p];
     return `<h2 class="sheet-title" id="sheet-title">Get Every App</h2><p class="sheet-lead">For ${esc(thisDevice())}. ${esc(tip)}</p>
@@ -702,7 +799,7 @@
         ${c ? `<div class="reading" style="margin-top:18px"><span class="big" style="font-size:48px">${c.n}</span><span class="of" style="font-size:20px">of ${c.total} installed</span></div>` : ''}
         ${bulk}
         <div class="group" id="setup-rows" style="margin-top:18px">${APPS.map((a) => appRow(a, { plats: false })).join('')}</div>
-        <p class="group-foot">Not on ${esc(PLAT[p].name)}? Apps without ${/^[aeiou]/i.test(PLAT[p].name) ? 'an' : 'a'} ${esc(PLAT[p].name)} version open on the web instead.</p>
+        <p class="group-foot">${(MAS || NODL) && p === 'mac' ? 'Apps that aren’t on the Mac App Store yet open on the web instead.' : `Not on ${esc(PLAT[p].name)}? Apps without ${/^[aeiou]/i.test(PLAT[p].name) ? 'an' : 'a'} ${esc(PLAT[p].name)} version open on the web instead.`}</p>
         <p style="margin-top:22px"><button class="button wide" data-act="close">Done</button></p></div>`;
   }
 
@@ -720,7 +817,7 @@
         <p style="color:var(--ink-2);margin:0 0 22px;font-size:15px">${apple('Small, free, open-source apps for iPhone, iPad, Android, Mac and the web.')}</p></div>
       <div class="sheet-pad"><div class="group">
         <a class="row info tap" href="${C.developer.url}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">bradcowdrey.com</span><span class="v"></span>${icon('chevron', 'chev')}</a>
-        <a class="row info tap" href="${C.developer.github}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Every app on GitHub</span><span class="v"></span>${icon('chevron', 'chev')}</a>
+        ${APPLE_STORE ? '' : `<a class="row info tap" href="${C.developer.github}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Every app on GitHub</span><span class="v"></span>${icon('chevron', 'chev')}</a>`}
         ${C.hubRepo ? `<a class="row info tap" href="https://github.com/${esc(C.hubRepo)}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Cowdrey One’s code</span><span class="v" style="color:var(--ink-2)">MIT License</span>${icon('chevron', 'chev')}</a>` : ''}
         <a class="row info tap" href="${C.termsUrl}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Terms of Use and Privacy</span><span class="v"></span>${icon('chevron', 'chev')}</a></div>
       <p class="group-label">Cowdrey One</p><div class="group">
@@ -850,7 +947,8 @@
     if (ok) { checkedAt = Date.now(); store.set('checkedAt', checkedAt); store.set('releases', releases); }
     else checkFailed = true;
     refresh();
-    if (!quiet) {
+    // The App Store versions leave updates to the App Store, and never say whether apps are up to date (2.4.5).
+    if (!quiet && !APPLE_STORE) {
       const u = updates().length;
       toast(checkFailed ? 'Couldn’t check for updates. Are you online?' : u ? `${u} ${u === 1 ? 'update' : 'updates'} available.` : 'Every app is up to date.');
     }
@@ -900,7 +998,7 @@
     const u = updates().length;
     $$('.badge').forEach((b) => { b.hidden = !u; b.textContent = u; });
     if (sheet && sheetKind === 'app' && pageApp) {
-      $$('[data-pill]', sheet).forEach((el) => { el.outerHTML = pill(pageApp, 'light'); });
+      $$('[data-pill]', sheet).forEach((el) => { el.outerHTML = pill(pageApp, 'light', !!el.dataset.long); });
       const gr = $('#get-rows', sheet); if (gr) gr.innerHTML = getRows(pageApp);
       const wn = $('#whats-new', sheet); if (wn) wn.innerHTML = whatsNew(pageApp);
     }
@@ -948,9 +1046,9 @@
       case 'allow-settings': nativeCall('openInstallSettings').catch(() => {}); closeSheet(); break;
       case 'check': checkUpdates(false); break;
       case 'appearance': prefs.appearance = t.dataset.v; savePrefs(); applyTheme(); renderLibrary(); break;
-      case 'share-hub': share('Cowdrey One', apple('Every free app by Bradley Cowdrey, for iPhone, Android, Mac and the web.'), C.hubUrl); break;
-      case 'copy-hub': copy(C.hubUrl); break;
-      case 'share-app': share(a.name, `${a.name}: ${a.subtitle}. Free, by Bradley Cowdrey.`, C.hubUrl + '?app=' + a.id); break;
+      case 'share-hub': share('Cowdrey One', apple('Every free app by Bradley Cowdrey, for iPhone, Android, Mac and the web.'), hubLink()); break;
+      case 'copy-hub': copy(hubLink()); break;
+      case 'share-app': share(a.name, `${a.name}: ${a.subtitle}. Free, by Bradley Cowdrey.`, hubLink(a.id)); break;
       case 'install': if (installEvent) { installEvent.prompt(); installEvent.userChoice.finally(() => { installEvent = null; refresh(); }); } break;
       case 'dismiss-banner': store.set('bannerDismissed', true); refresh(); break;
       case 'ext': if (isTauri) { e.preventDefault(); openUrl(t.href); } break;
@@ -995,7 +1093,7 @@
   });
   window.addEventListener('pageshow', (e) => { if (e.persisted) toTop(); });
   syncInstalled();
-  if (NATIVE === 'mac' && window.__TAURI__.event) {
+  if (NATIVE === 'mac' && !MAS && window.__TAURI__.event) {
     window.__TAURI__.event.listen('install-progress', (ev) => {
       const p = ev.payload || {};
       if (busy[p.id] && p.stage !== 'done') { busy[p.id] = p.stage; refresh(); }
