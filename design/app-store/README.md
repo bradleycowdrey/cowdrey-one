@@ -87,7 +87,10 @@ const png = await compose(browser, 'mac', { head: 'Every temperature in °F and 
   `windows[i].scale` from 1 up to 1.5 (the box becomes `w × scale` by `h × scale`, chrome included; `x`, `y` place the
   enlarged box). Any other `scale` (below 1, above 1.5, or above 1 on a window 600 pt or wider) is refused.
 - **One clock.** The menu bar's clock is `MAC_CLOCK` (`'Wed Nov 25  9:41 AM'`), the default of `desktop()`, so every
-  app's desktop shows the same time. Apps must not pass their own `clock`.
+  app's desktop shows the same time. Apps must not pass their own `clock`, with a single exception: an app whose
+  captured window itself shows the current time (a clock, a "now" line, an "Updated 8:36 PM" stamp) passes
+  `desktop({ clock })` set to that same time, formatted exactly like `MAC_CLOCK` (day, date, two spaces, time:
+  `'Wed Nov 25  8:36 PM'`), so the menu bar never contradicts the app. Every other app keeps `MAC_CLOCK`.
 - **Wallpapers.** Each theme's `desk: [top, middle, bottom]` is its desktop: md indigo ink, pdf raspberry wine,
   meridian teal night, twodegrees sky blue to a peach dusk, bearings compass blue to ice, goldenhour amber gold,
   one clay terracotta. Each is lighter than its page's ground and differs from the others at thumbnail size. A
