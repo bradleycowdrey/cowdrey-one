@@ -32,9 +32,17 @@ const RAW = ARG.raw ? path.resolve(String(ARG.raw)) : null;
 // generator puts them in. The Mac app is captured as its whole window at its real width (1180, tauri.conf.json) and
 // a little taller than it opens (872, not 820), as someone would size it: the sheets (Get Every App, an app's page)
 // are 60 points shorter than the window, so at 872 Get Every App ends cleanly below a whole row. The other pictures
-// set the window's height for what they show (macH), so each window ends at a clean break, never through a row:
-// Discover below All Apps' first row, an app's page below What's New's first note, the Library below its last card,
-// Get on Your Phone below the iPhone and iPad steps.
+// set the window's size for what they show (macW, macH), so each window ends at a clean break, never through a row:
+// - Discover is wider (1320), so its carousel shows three apps, and ends in the gap below the set-up card, above All
+//   Apps (whose boxes of three apps are too tall for the window to end below them).
+// - An app's page (Bearings) is in a narrower window (1044), where the page fills the whole column beside the sidebar:
+//   it reads as the app's page, not a second sheet over Discover like Get Every App, and no dimmed words are cut by
+//   its edges. The window's height ends the page just below What's New's first note, and Discover behind it is
+//   scrolled so the thin strips above and below the page hold no words or pictures (toClearStrips).
+// - The Library ends below its last card, Get on Your Phone below the iPhone and iPad steps.
+// The Mac pictures are the Mac App Store version (desktop/build.mjs STORE=appstore, window.COWDREY_STORE = 'appstore'),
+// which, like the iPhone and iPad app, names and shows no other platform (App Review guideline 2.3.10); capture()
+// refuses a picture that shows Android.
 // The window lays its title bar over the top 28 points (titleBarStyle Overlay, hiddenTitle), so the template adds only the
 // traffic lights there, and the window is shown on the family's MacBook desktop (desktop(), device 'macbook').
 const UA = {
@@ -126,10 +134,10 @@ function fakeNative(installed) {
 // emulated, Chromium draws the frosted glass (backdrop-filter blur, as on the tab bar and the cards' bars) clear.
 let browser, server, base, termsVersion, css;
 const devices = {};
-async function app(kind, h = DEVICES[kind].h) {
+async function app(kind, h = DEVICES[kind].h, w = DEVICES[kind].w) {
   const d = DEVICES[kind];
-  devices[kind + h] ||= await chromium.launch({ args: [`--force-device-scale-factor=${d.scale}`, `--window-size=${d.w},${h}`] });
-  const ctx = await devices[kind + h].newContext({
+  devices[kind + w + 'x' + h] ||= await chromium.launch({ args: [`--force-device-scale-factor=${d.scale}`, `--window-size=${w},${h}`] });
+  const ctx = await devices[kind + w + 'x' + h].newContext({
     viewport: null, hasTouch: d.touch, userAgent: UA[kind], colorScheme: 'dark', locale: 'en-US', timezoneId: ZONE,
   });
   await ctx.clock.setFixedTime(new Date(NOW[kind]));
@@ -147,12 +155,13 @@ async function app(kind, h = DEVICES[kind].h) {
   });
   await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), termsVersion);
   await ctx.addInitScript(fakeNative, INSTALLED[kind]);
+  if (kind === 'mac') await ctx.addInitScript(() => { window.COWDREY_STORE = 'appstore'; });   // the Mac App Store version
   const p = await ctx.newPage();
   p.errors = [];
   p.on('pageerror', (e) => p.errors.push(e.message));
   await p.goto(base, { waitUntil: 'load' });
   const screen = await p.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
-  if (screen.join() !== [d.w, h, d.scale].join()) throw new Error(`${kind}: a ${screen.join(' x ')} screen, not ${d.w} x ${h} x ${d.scale}`);
+  if (screen.join() !== [w, h, d.scale].join()) throw new Error(`${kind}: a ${screen.join(' x ')} screen, not ${w} x ${h} x ${d.scale}`);
   // It checks GitHub for new versions 1.2 seconds after it starts.
   await p.waitForFunction(() => !!localStorage.getItem('cowdrey-one.checkedAt'), null, { timeout: 10000 });
   await p.waitForTimeout(400);
@@ -167,6 +176,21 @@ const tab = async (p, t) => tap(p, (await wide(p)) ? `.side-item[data-tab="${t}"
 // first (the set-up card 15 points below the window's top), only Discover's empty bottom margin shows there, not a
 // list cut off by the window, and the window's top edge falls between the carousel and the set-up card rather than
 // through either, whatever the window's height.
+// For an app's page on the Mac: the page fills the column beside the sidebar and stops 30 points short of the
+// window's top and bottom, so Discover shows, dimmed, in a strip above and below it. Discover is scrolled so that
+// neither strip holds any words or pictures (only the cards' and boxes' plain backgrounds), the first such place.
+const toClearStrips = async (p) => p.evaluate(() => {
+  const main = document.querySelector('#view-discover');
+  const boxes = [];
+  const walk = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
+  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); boxes.push(...r.getClientRects()); }
+  for (const e of main.querySelectorAll('img, svg')) boxes.push(e.getBoundingClientRect());
+  const spans = boxes.filter((r) => r.width && r.height).map((r) => [r.top + scrollY, r.bottom + scrollY]);
+  const clear = (a, b) => spans.every(([t, u]) => u <= a || t >= b);
+  const max = document.documentElement.scrollHeight - innerHeight;
+  for (let y = 0; y <= max; y++) if (clear(y, y + 30) && clear(y + innerHeight - 30, y + innerHeight)) return window.scrollTo(0, y), y;
+  throw new Error('no scroll position leaves both strips beside the page clear');
+});
 const toEnd = async (p) => { if (await wide(p)) await p.evaluate(() => window.scrollTo(0, document.querySelector('#setup-slot').getBoundingClientRect().top + scrollY - 15)); };
 
 /* ---------------- the stories ---------------- */
@@ -174,10 +198,10 @@ const toEnd = async (p) => { if (await wide(p)) await p.evaluate(() => window.sc
 // Headlines are two lines, so the iPhone sits at the family's two-line height; the Mac joins them into one line
 // (two lines and a sub-line don't fit above the MacBook), as Cowdrey.PDF does.
 const STORIES = [
-  { slug: 'discover', head: 'Every app,\none place.', sub: 'All of Bradley Cowdrey’s free apps.', macH: 882,
+  { slug: 'discover', head: 'Every app,\none place.', sub: 'All of Bradley Cowdrey’s free apps.', macW: 1320, macH: 724,
     async shoot() {} },
-  { slug: 'app-page', head: 'Know each app,\ninside and out.', sub: 'What it does, what’s new, where to get it.', macH: 914,
-    async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#all-apps [data-id="meridian"] .main'); } },
+  { slug: 'app-page', head: 'Know each app,\ninside and out.', sub: 'What it does, what’s new, where to get it.', macW: 1044, macH: 894,
+    async shoot(p, kind) { if (kind === 'mac') await toClearStrips(p); await tap(p, `#all-apps [data-id="${kind === 'mac' ? 'bearings' : 'meridian'}"] .main`); } },
   { slug: 'get-every-app', head: 'Get them all,\nin one go.', sub: (kind) => (kind === 'mac' ? 'One click for each app, or Install All.' : 'One tap for each app, or Get All.'),
     async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#setup-slot [data-act="setup"]'); } },
   { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone,\nready to open.' : `What’s on this\n${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.', macH: 904,
@@ -188,8 +212,8 @@ const STORIES = [
 const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
 
 async function capture(kind, story) {
-  const d = DEVICES[kind], h = (kind === 'mac' && story.macH) || d.h;
-  const p = await app(kind, h);
+  const d = DEVICES[kind], h = (kind === 'mac' && story.macH) || d.h, w = (kind === 'mac' && story.macW) || d.w;
+  const p = await app(kind, h, w);
   await story.shoot(p, kind);
   // Sheets slide up and views fade in; then every picture on the screen has loaded.
   await p.waitForTimeout(900);
@@ -197,10 +221,12 @@ async function capture(kind, story) {
     const r = i.getBoundingClientRect();
     return i.complete || !r.height || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth;
   }), null, { timeout: 10000 });
-  if (kind === 'mac') await p.mouse.move(d.w - 4, h - 4);
+  if (kind === 'mac') await p.mouse.move(w - 4, h - 4);
   await p.waitForTimeout(300);
-  const png = await p.screenshot({ clip: { x: 0, y: 0, width: d.w, height: h } });
-  const ok = await p.evaluate(() => ({ native: window.CowdreyOne.native, dark: document.documentElement.dataset.theme }));
+  const png = await p.screenshot({ clip: { x: 0, y: 0, width: w, height: h } });
+  const ok = await p.evaluate(() => ({ native: window.CowdreyOne.native, dark: document.documentElement.dataset.theme,
+    android: /Android|Google Play/.test(document.body.innerText) || !!document.querySelector('use[href="#i-android"]') }));
+  if (ok.android) throw new Error(`${kind} ${story.slug}: shows Android, which App Store pictures must not`);
   if (ok.native !== (kind === 'mac' ? 'mac' : 'ios') || ok.dark !== 'dark') throw new Error(`${kind} ${story.slug}: not the ${kind} app in dark mode (${JSON.stringify(ok)})`);
   if (p.errors.length) throw new Error(`${kind} ${story.slug}: ${p.errors.join('; ')}`);
   await p.ctx.close();
@@ -209,9 +235,9 @@ async function capture(kind, story) {
 
 // The MacBook's screen: Cowdrey One's window (its real size, centred below the menu bar) with its traffic lights
 // over the app's own title-bar strip, the menu bar showing Cowdrey One, the Dock hidden.
-const macDesktop = (png, h) => desktop(browser, {
+const macDesktop = (png, w, h) => desktop(browser, {
   theme: THEMES.one, app: 'Cowdrey One', fonts: FONTS,
-  windows: [{ png, w: DEVICES.mac.w, h, chrome: 'none', lights: true }],
+  windows: [{ png, w, h, chrome: 'none', lights: true }],
 });
 
 const b64 = (f) => fs.readFileSync(path.join(root, f)).toString('base64');
@@ -243,7 +269,7 @@ const FONTS = { fraunces: b64('web/fonts/fraunces.woff2'), instrument: b64('desi
         const copy = { head: heads[k], sub: text(story.sub, kind), lines: [...lines][0], file };
         // The Mac: the app's window on the MacBook's desktop. The iPhone and iPad: the screen in its device.
         const out = kind === 'mac'
-          ? await compose(browser, kind, { ...copy, device: 'macbook', png: await macDesktop(png, (story.macH || DEVICES.mac.h)) }, THEMES.one, FONTS)
+          ? await compose(browser, kind, { ...copy, device: 'macbook', png: await macDesktop(png, story.macW || DEVICES.mac.w, story.macH || DEVICES.mac.h) }, THEMES.one, FONTS)
           : await compose(browser, kind, { ...copy, png, title: 'Cowdrey One' }, THEMES.one, FONTS);
         fs.writeFileSync(path.join(OUT, file), out);
         console.log('wrote docs/app-store/' + file);

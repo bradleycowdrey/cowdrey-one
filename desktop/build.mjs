@@ -21,18 +21,24 @@ if (new Set(Object.values(all)).size !== 1) {
 
 // STORE=play builds the Google Play version of the Android app: store.js tells the app it came from Google Play, so
 // it gets each app from its Google Play page and never offers an APK (Play doesn't let an app install others).
-// Every other build (the GitHub APK, Mac, iPhone and iPad) is web/ as it is.
+// STORE=appstore builds the Mac App Store version of the Mac app: store.js tells the app it came from the Mac App
+// Store, so, like the iPhone and iPad app, it names and shows no other platform (App Review guideline 2.3.10).
+// Every other build (the GitHub APK, the Mac .dmg, iPhone and iPad) is web/ as it is.
 const STORE = process.env.STORE || '';
-if (!['', 'play'].includes(STORE)) {
-  console.error(`STORE=${STORE}: the only store build is STORE=play`);
+const STORES = {
+  play: { name: 'Google Play', note: 'The Google Play version of Cowdrey One for Android' },
+  appstore: { name: 'Mac App Store', note: 'The Mac App Store version of Cowdrey One for Mac' },
+};
+if (STORE && !STORES[STORE]) {
+  console.error(`STORE=${STORE}: the store builds are ${Object.keys(STORES).map((s) => 'STORE=' + s).join(' and ')}`);
   process.exit(1);
 }
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 cpSync(web, dist, { recursive: true, filter: (src) => !src.endsWith('sw.js') });
-if (STORE === 'play') {
-  writeFileSync(join(dist, 'store.js'), "// The Google Play version of Cowdrey One for Android (desktop/build.mjs, STORE=play).\nwindow.COWDREY_STORE = 'play';\n");
+if (STORE) {
+  writeFileSync(join(dist, 'store.js'), `// ${STORES[STORE].note} (desktop/build.mjs, STORE=${STORE}).\nwindow.COWDREY_STORE = '${STORE}';\n`);
   const index = join(dist, 'index.html');
   const html = readFileSync(index, 'utf8');
   const tag = '<script src="catalog.js"></script>';
@@ -42,4 +48,4 @@ if (STORE === 'play') {
   }
   writeFileSync(index, html.replace(tag, '<script src="store.js"></script>\n' + tag));
 }
-console.log(`Cowdrey One ${conf}: copied web/ into desktop/dist${STORE ? ` (the ${STORE === 'play' ? 'Google Play' : STORE} version)` : ''}`);
+console.log(`Cowdrey One ${conf}: copied web/ into desktop/dist${STORE ? ` (the ${STORES[STORE].name} version)` : ''}`);
