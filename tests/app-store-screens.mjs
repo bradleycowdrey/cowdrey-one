@@ -17,7 +17,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { compose, THEMES } from '../design/app-store/store-frame.mjs';
+import { compose, desktop, THEMES } from '../design/app-store/store-frame.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = path.join(root, 'web');
@@ -29,8 +29,9 @@ const RAW = ARG.raw ? path.resolve(String(ARG.raw)) : null;
 
 /* ---------------- the devices ---------------- */
 // Screens in points, and the safe areas of the real screens (iPhone 16 Pro Max and 13-inch iPad Pro), as Cowdrey.PDF's
-// generator puts them in. The Mac app lays its title bar over the top 28 points of the window (titleBarStyle
-// Overlay), so its window is captured 28 points taller and that strip is left to the template's title bar.
+// generator puts them in. The Mac app is captured as its whole window at its real size (1180 x 820, tauri.conf.json):
+// it lays its title bar over the top 28 points (titleBarStyle Overlay, hiddenTitle), so the template adds only the
+// traffic lights there, and the window is shown on the family's MacBook desktop (desktop(), device 'macbook').
 const UA = {
   iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
   ipad: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
@@ -39,7 +40,7 @@ const UA = {
 const DEVICES = {
   iphone: { w: 440, h: 956, scale: 3, touch: true, safe: { top: 62, bottom: 34 }, name: 'iPhone' },
   ipad: { w: 1032, h: 1376, scale: 2, touch: true, safe: { top: 24, bottom: 20 }, name: 'iPad' },
-  mac: { w: 1180, h: 700, scale: 2, touch: false, safe: { top: 0, bottom: 0 }, name: 'Mac', titlebar: 28 },
+  mac: { w: 1180, h: 820, scale: 2, touch: false, safe: { top: 0, bottom: 0 }, name: 'Mac' },
 };
 // What's on each device: the iPhone and iPad app sees Two Degrees by its link; the Mac app sees what's in
 // Applications (Meridian from its .dmg, Two Degrees from the Mac App Store).
@@ -48,8 +49,8 @@ const INSTALLED = {
   ipad: { twodegrees: true },
   mac: { meridian: { version: '2.1.4' }, 'two-degrees': { version: '2.3.5', appStore: true } },
 };
-// A Tuesday morning, for the date on Discover and "Checked 9:41 AM".
-const NOW = '2026-11-24T09:41:00-05:00', ZONE = 'America/New_York';
+// A Tuesday morning, for the date on Discover and "Checked 9:41 AM" (and the Mac's menu-bar clock).
+const NOW = '2026-11-24T09:41:00-05:00', ZONE = 'America/New_York', CLOCK = 'Tue Nov 24  9:41 AM';
 
 /* ---------------- each app's latest release on GitHub, with notes from its changelog ---------------- */
 const RELEASES = {
@@ -119,7 +120,7 @@ function fakeNative(installed) {
 let browser, server, base, termsVersion, css;
 const devices = {};
 async function app(kind) {
-  const d = DEVICES[kind], h = d.h + (d.titlebar || 0);
+  const d = DEVICES[kind], h = d.h;
   devices[kind] ||= await chromium.launch({ args: [`--force-device-scale-factor=${d.scale}`, `--window-size=${d.w},${h}`] });
   const ctx = await devices[kind].newContext({
     viewport: null, hasTouch: d.touch, userAgent: UA[kind], colorScheme: 'dark', locale: 'en-US', timezoneId: ZONE,
@@ -183,15 +184,22 @@ async function capture(kind, story) {
     const r = i.getBoundingClientRect();
     return i.complete || !r.height || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth;
   }), null, { timeout: 10000 });
-  if (kind === 'mac') await p.mouse.move(d.w - 4, d.h + d.titlebar - 4);
+  if (kind === 'mac') await p.mouse.move(d.w - 4, d.h - 4);
   await p.waitForTimeout(300);
-  const png = await p.screenshot({ clip: { x: 0, y: d.titlebar || 0, width: d.w, height: d.h } });
+  const png = await p.screenshot({ clip: { x: 0, y: 0, width: d.w, height: d.h } });
   const ok = await p.evaluate(() => ({ native: window.CowdreyOne.native, dark: document.documentElement.dataset.theme }));
   if (ok.native !== (kind === 'mac' ? 'mac' : 'ios') || ok.dark !== 'dark') throw new Error(`${kind} ${story.slug}: not the ${kind} app in dark mode (${JSON.stringify(ok)})`);
   if (p.errors.length) throw new Error(`${kind} ${story.slug}: ${p.errors.join('; ')}`);
   await p.ctx.close();
   return png;
 }
+
+// The MacBook's screen: Cowdrey One's window (its real size, centred below the menu bar) with its traffic lights
+// over the app's own title-bar strip, the menu bar showing Cowdrey One, the Dock hidden.
+const macDesktop = (png) => desktop(browser, {
+  theme: THEMES.one, app: 'Cowdrey One', clock: CLOCK, fonts: FONTS,
+  windows: [{ png, w: DEVICES.mac.w, h: DEVICES.mac.h, chrome: 'none', lights: true }],
+});
 
 const b64 = (f) => fs.readFileSync(path.join(root, f)).toString('base64');
 const FONTS = { fraunces: b64('web/fonts/fraunces.woff2'), instrument: b64('design/app-store/instrument-sans.woff2') };
@@ -219,7 +227,11 @@ const FONTS = { fraunces: b64('web/fonts/fraunces.woff2'), instrument: b64('desi
         const rawFile = RAW && path.join(RAW, `${kind}-${story.slug}.png`);
         const png = ARG.reuse && rawFile ? fs.readFileSync(rawFile) : await capture(kind, story);
         if (rawFile && !ARG.reuse) fs.writeFileSync(rawFile, png);
-        const out = await compose(browser, kind, { head: heads[k], sub: text(story.sub, kind), png, title: 'Cowdrey One', lines: [...lines][0], file }, THEMES.one, FONTS);
+        const copy = { head: heads[k], sub: text(story.sub, kind), lines: [...lines][0], file };
+        // The Mac: the app's window on the MacBook's desktop. The iPhone and iPad: the screen in its device.
+        const out = kind === 'mac'
+          ? await compose(browser, kind, { ...copy, device: 'macbook', png: await macDesktop(png) }, THEMES.one, FONTS)
+          : await compose(browser, kind, { ...copy, png, title: 'Cowdrey One' }, THEMES.one, FONTS);
         fs.writeFileSync(path.join(OUT, file), out);
         console.log('wrote docs/app-store/' + file);
       }
