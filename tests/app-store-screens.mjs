@@ -176,8 +176,8 @@ const tab = async (p, t) => tap(p, (await wide(p)) ? `.side-item[data-tab="${t}"
 // For an app's page and Get Every App on the Mac: the sheet fills the column beside the sidebar and hangs from the
 // top of the window, as the Mac App Store version's sheets do (so nothing shows above it), and stops at least 30
 // points short of the window's bottom, so Discover shows, dimmed, in a strip below it and a sliver beside it. Discover
-// is scrolled so that neither holds any words or pictures (only the cards' and boxes' plain backgrounds), nor, beside
-// it, a featured app's card, the first such place.
+// is scrolled so that neither holds any words or pictures, nor, beside it, a featured app's card, the first such place;
+// and where it can be, the strip below holds no card's plain background either.
 const toClearStrips = async (p) => p.evaluate(() => {
   const main = document.querySelector('#view-discover');
   const boxes = [];
@@ -192,8 +192,48 @@ const toClearStrips = async (p) => p.evaluate(() => {
   const side = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--side')) || 0;
   const right = (innerWidth + side) / 2 + Math.min(700, innerWidth - side - 80) / 2;
   const max = document.documentElement.scrollHeight - innerHeight;
+  // Best, the strip below holds no card at all, not even a card's plain background (any box drawn with a fill).
+  const filled = [...main.querySelectorAll('*')].filter((e) => { const c = getComputedStyle(e); return c.backgroundImage !== 'none' || !/rgba\(0, 0, 0, 0\)|transparent/.test(c.backgroundColor); })
+    .map((e) => e.getBoundingClientRect()).filter((r) => r.width && r.height).map((r) => [r.top + scrollY, r.bottom + scrollY]);
+  const bare = (a, b) => filled.every(([t, u]) => u <= a || t >= b);
+  for (let y = 0; y <= max; y++) if (bare(y + innerHeight - strip, y + innerHeight) && clear(y + innerHeight - strip, y + innerHeight) && clear(y, y + innerHeight, right)) return window.scrollTo(0, y), y;
   for (let y = 0; y <= max; y++) if (clear(y + innerHeight - strip, y + innerHeight) && clear(y, y + innerHeight, right)) return window.scrollTo(0, y), y;
   throw new Error('no scroll position leaves the strips below and beside the page clear');
+});
+
+// On the iPad, an app's page is a page sheet down to the bottom of the screen (app.css): it is scrolled the least that
+// makes the screen's bottom edge fall between lines and pictures, never through a line of words, an icon or a button.
+// What's New, above, shows whole.
+const toCleanCut = async (p) => p.evaluate(() => {
+  const sc = document.querySelector('.sheet .sheet-scroll');
+  const boxes = [];
+  const walk = document.createTreeWalker(sc, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
+  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); boxes.push(...r.getClientRects()); }
+  for (const e of sc.querySelectorAll('img, svg, .pill, .glyph, .icon')) boxes.push(e.getBoundingClientRect());
+  const spans = boxes.filter((r) => r.width && r.height).map((r) => [r.top + sc.scrollTop, r.bottom + sc.scrollTop]);
+  const notes = document.querySelector('.sheet #whats-new').getBoundingClientRect().bottom + sc.scrollTop;
+  const H = innerHeight - 4;   // a little clear space at the very bottom
+  for (let y = 0; y <= sc.scrollHeight - sc.clientHeight; y++) {
+    if (notes - y > H) break;
+    if (spans.every(([t, b]) => b - y <= H - 6 || t - y >= innerHeight)) { sc.scrollTop = y; return y; }
+  }
+  throw new Error('no scroll position ends the iPad page between lines');
+});
+
+// On the iPhone, Share is scrolled the least that shows this iPhone's steps whole above the floating tab bar, with no
+// line of words cut by the bar's top edge.
+const toClearTabBar = async (p) => p.evaluate(() => {
+  const bar = document.querySelector('.tabbar').getBoundingClientRect().top - 8;
+  const view = document.querySelector('#view-share');
+  const lines = [];
+  const walk = document.createTreeWalker(view, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
+  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); lines.push(...[...r.getClientRects()].map((x) => [x.top + scrollY, x.bottom + scrollY])); }
+  const mine = document.querySelector('#view-share .how h4 .here-tag').closest('.how').querySelector('.steps').getBoundingClientRect().bottom + scrollY;
+  const max = document.documentElement.scrollHeight - innerHeight;
+  for (let y = Math.max(0, Math.ceil(mine - bar)); y <= max; y++) {
+    if (lines.every(([t, b]) => b - y <= bar || t - y >= bar)) return window.scrollTo(0, y), y;
+  }
+  throw new Error('no scroll position shows this iPhone’s steps clear of the tab bar');
 });
 
 // Window heights measured from the app itself (fit), so a window ends at a clean break whatever the words above:
@@ -224,7 +264,11 @@ const STORIES = [
   { slug: 'discover', head: 'Every app,\none place.', sub: 'All of Bradley Cowdrey’s free apps.', macW: 1320, macH: 724,
     async shoot() {} },
   { slug: 'app-page', head: 'Know each app,\ninside and out.', sub: 'What it does, what’s new, where to get it.', macW: 1044, macH: 894,
-    async shoot(p, kind) { if (kind === 'mac') await toClearStrips(p); await tap(p, `#all-apps [data-id="${kind === 'mac' ? 'bearings' : 'meridian'}"] .main`); } },
+    async shoot(p, kind) {
+      if (kind === 'mac') await toClearStrips(p);
+      await tap(p, `#all-apps [data-id="${kind === 'mac' ? 'bearings' : 'meridian'}"] .main`);
+      if (kind === 'ipad') { await p.waitForTimeout(900); await toCleanCut(p); }
+    } },
   // The Mac App Store version installs nothing (most apps open on the web there), so its headline says no more than
   // that: each app is a click away.
   { slug: 'get-every-app', macW: 1044, fit: fitSheet, head: (kind) => (kind === 'mac' ? 'Every app,\na click away.' : 'Get them all,\nin one go.'),
@@ -235,7 +279,7 @@ const STORIES = [
   // The Mac shows Get on Your Phone (a QR code to scan); the iPhone and iPad show Share (the code and a link to send).
   { slug: 'share', head: (kind) => (kind === 'mac' ? 'Get it on\nyour iPhone.' : 'Share it\nwith a friend.'),
     sub: (kind) => (kind === 'mac' ? 'Scan to get Cowdrey One on your iPhone.' : 'A QR code and a link to Cowdrey One.'), fit: fitGap('#view-share .promise'),
-    async shoot(p) { await tab(p, 'share'); } },
+    async shoot(p, kind) { await tab(p, 'share'); if (kind === 'iphone') { await p.waitForTimeout(400); await toClearTabBar(p); } } },
 ];
 const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
 

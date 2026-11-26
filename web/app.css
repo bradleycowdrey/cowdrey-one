@@ -245,7 +245,8 @@ button.meta { text-align: left; }
 .qr-card p { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; }
 .qr-card .actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .qr-card .actions .button { height: 42px; padding: 0 18px; border-radius: 12px; font-size: 16px; }
-.url { font: 500 13px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-2); word-break: break-all; margin-top: 12px; }
+/* A link wraps before its ? (never mid-word), and only a part too long for a line breaks anywhere. */
+.url { font: 500 13px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-2); overflow-wrap: anywhere; margin-top: 12px; }
 .steps { margin: 6px 0 0; padding: 0; list-style: none; counter-reset: s; }
 .steps li { position: relative; padding: 0 0 0 34px; margin: 10px 0; font-size: 15px; line-height: 1.4; counter-increment: s; }
 .steps li::before { content: counter(s); position: absolute; left: 0; top: -1px; width: 23px; height: 23px; border-radius: 50%; display: grid; place-items: center;
@@ -391,6 +392,12 @@ button.meta { text-align: left; }
 @media (min-width: 900px) and (max-width: 1279px) {
   .apple-store:not(.mac-app) .feature-bar small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-height: 1.25; }
   .apple-store:not(.mac-app) .apps-grid .row .sub.clamp { -webkit-line-clamp: 3; }
+  /* A page sheet, as iPadOS shows one in portrait: it fills the column beside the sidebar from just below the status
+     bar to the bottom of the screen, so the page behind shows only in a strip above it, not around it. (Short sheets,
+     such as the welcome, stay centred.) */
+  .apple-store:not(.mac-app) .sheet:not(.short) { left: var(--side); right: 0; top: calc(var(--safe-t) + 10px); bottom: 0;
+    width: auto; height: auto; margin-left: 0; border-radius: 22px 22px 0 0; transform: translateY(40px); }
+  .apple-store:not(.mac-app) .sheet:not(.short).on { transform: none; }
 }
 @media (min-width: 1280px) {
   .carousel { grid-auto-columns: calc((100% - 28px) / 3); }

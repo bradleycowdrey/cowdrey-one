@@ -617,6 +617,18 @@ async function open(ctx, url, errors, name) {
     check(!cut.length, `every card and app line shows its subtitle in full on the iPad${cut.length ? ` (cut: ${cut.join('; ')})` : ''}`);
     await ctx.close();
   }
+  console.log('iPad app, 13-inch (sidebar)');
+  {
+    const { ctx, p } = await nativeApp('ipad-13', { viewport: { width: 1032, height: 1376 }, hasTouch: true, userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148' }, {});
+    await p.evaluate(() => document.querySelector('#all-apps [data-id="bearings"] .main').click()); await p.waitForTimeout(700);
+    const r = await p.evaluate(() => { const b = document.querySelector('.sheet').getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom, innerWidth, innerHeight].map(Math.round); });
+    check(r[0] === 264 && r[1] === 10 && r[2] === r[4] && r[3] === r[5], `an app’s page is a page sheet: the column beside the sidebar, from below the status bar to the bottom (${r})`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    await p.evaluate(() => document.querySelector('.side-item[data-tab="share"]').click()); await p.waitForTimeout(300);
+    const url = await p.evaluate(() => { const e = document.querySelector('#view-share .url'); const r = document.createRange(); r.selectNodeContents(e); return { lines: new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size, html: e.innerHTML }; });
+    check(/<wbr>\?store=apple$/.test(url.html), `Share’s link may wrap only before its ? (${url.html}, ${url.lines} line${url.lines > 1 ? 's' : ''})`);
+    await ctx.close();
+  }
 
   console.log('iPhone app, with Two Degrees installed');
   {

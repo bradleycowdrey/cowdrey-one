@@ -637,7 +637,7 @@
           <p>${APPLE_STORE ? (desk ? 'Scan this with your iPhone to open Cowdrey One there. Then each app is one tap away.' : 'Show this code to a friend, or send the link. It opens Cowdrey One, with every app one tap away.')
             : desk ? 'Scan this with your iPhone or Android phone to open Cowdrey One there. Then each app is one tap away, with the right download for that phone.' : 'Show this code to a friend, or send the link. It opens every app with the right download for their phone or computer.'}</p>
           <div class="actions"><button class="button" data-act="share-hub">${icon('share')}Share</button><button class="button quiet" data-act="copy-hub">${icon('link')}Copy Link</button></div>
-          <div class="url">${esc(url)}</div></div></section>
+          <div class="url">${esc(url).replace('?', '<wbr>?')}</div></div></section>
       <p class="group-label">Keep Cowdrey One on your devices</p>
       <div class="group">${standalone && !isTauri ? `<div class="how"><h4>${icon('check-circle')}Cowdrey One is installed on ${esc(thisDevice())}</h4><p class="sub" style="color:var(--ink-2);font-size:15px;margin:6px 0 10px">Open it from your ${detected.p === 'mac' ? 'Dock' : 'Home Screen'} any time.</p></div>` : ''}
         ${order.map((p) => `<div class="how"><h4>${icon(PLAT[p].icon)}${how[p].t}${p === detected.p ? `<span class="here-tag">This ${esc(detected.device)}</span>` : ''}</h4>
