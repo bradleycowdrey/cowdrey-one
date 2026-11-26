@@ -22,7 +22,9 @@ if (new Set(Object.values(all)).size !== 1) {
 // STORE=play builds the Google Play version of the Android app: store.js tells the app it came from Google Play, so
 // it gets each app from its Google Play page and never offers an APK (Play doesn't let an app install others).
 // STORE=appstore builds the Mac App Store version of the Mac app: store.js tells the app it came from the Mac App
-// Store, so, like the iPhone and iPad app, it names and shows no other platform (App Review guideline 2.3.10).
+// Store, so, like the iPhone and iPad app, it names and shows no other platform (App Review guideline 2.3.10), and it
+// never downloads or installs another app (2.4.5, 2.5.2): Get opens the Mac App Store, or the web. Build its app with
+// `tauri build --features appstore --config src-tauri/tauri.appstore.conf.json`, which leaves the installer out.
 // Every other build (the GitHub APK, the Mac .dmg, iPhone and iPad) is web/ as it is.
 const STORE = process.env.STORE || '';
 const STORES = {

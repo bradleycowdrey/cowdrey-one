@@ -259,13 +259,18 @@ async function open(ctx, url, errors, name) {
     await ctx.close();
   }
 
-  // The Mac App Store version (desktop/build.mjs, STORE=appstore) and the iPhone app name and show no other platform
-  // (App Review guideline 2.3.10): no Android anywhere, in words or icons, on any screen or app page.
+  // The Mac App Store version (desktop/build.mjs, STORE=appstore) and the iPhone and iPad app name and show no other
+  // platform (App Review guideline 2.3.10): no Android anywhere, in words or icons, on any screen or app page; no other
+  // browser or system (Chrome, Edge, Windows); and nothing about downloading or installing apps (guidelines 2.4.5 and
+  // 2.5.2): no .dmg or APK, in words or links, no Install All, no "puts it in Applications".
+  const OTHER = /Android|Google Play|Chrome|\bEdge\b|Windows|Linux|\.dmg\b|\bDMG\b|\bAPK\b|Install All|Download All|Download \(|in Applications/;
   const noAndroid = async (p, where) => {
     const seen = [];
     const look = async (what) => {
       const t = await p.evaluate(() => document.body.innerText + ' ' + [...document.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).join(' '));
-      if (/Android|Google Play/.test(t) || (await p.$$('use[href="#i-android"]')).length) seen.push(what);
+      const files = await p.evaluate(() => [...document.querySelectorAll('[href]')].map((e) => e.getAttribute('href')).filter((h) => /\.(?:dmg|apk|zip)(?:$|[?#])/i.test(h)));
+      const m = t.match(OTHER);
+      if (m || files.length || (await p.$$('use[href="#i-android"]')).length) seen.push(`${what}: ${m ? m[0] : files[0] || 'the Android icon'}`);
     };
     const go = (t) => p.evaluate((t) => document.querySelector(`.side-item[data-tab="${t}"], .tab[data-tab="${t}"]`).click(), t);
     for (const t of ['discover', 'library', 'share']) { await go(t); await p.waitForTimeout(250); await look(t); }
@@ -280,7 +285,10 @@ async function open(ctx, url, errors, name) {
     await look('About');
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     await go('discover'); await p.waitForTimeout(250);
-    check(!seen.length, `${where} shows no Android anywhere${seen.length ? ` (it does on ${seen.join(', ')})` : ''}`);
+    await p.evaluate(() => document.querySelector('#setup-slot [data-act="setup"]').click()); await p.waitForTimeout(400);
+    await look('Get Every App');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    check(!seen.length, `${where} shows no Android, other browser or system, or download anywhere${seen.length ? ` (it does on ${seen.join(', ')})` : ''}`);
   };
 
   console.log('Mac app from the Mac App Store');
@@ -288,12 +296,57 @@ async function open(ctx, url, errors, name) {
     const { ctx, p } = await nativeApp('mac-app-store', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, { meridian: '2.1.4' }, null, 'appstore');
     check(await p.evaluate(() => window.CowdreyOne.native) === 'mac', 'it knows it is the Mac app');
     await noAndroid(p, 'the Mac App Store version');
+    // Nothing is downloaded or installed: Get opens the Mac App Store, or the web.
+    const mas = C.apps.find((a) => a.id === 'two-degrees').platforms.mac.get.find((o) => o.kind === 'macappstore').url;
+    const webOf = (id) => C.apps.find((a) => a.id === id).platforms.web.get[0].url;
+    check(!(await p.$('#setup-slot .ring')) && /6 free apps/.test(await p.textContent('#setup-slot')), 'no count, just the six apps it lists');
+    check((await p.getAttribute('#all-apps [data-id="two-degrees"] a.pill', 'href')) === mas && /^https:\/\/apps\.apple\.com\/app\/id\d+/.test(mas), `Two Degrees’ Get goes to its Mac App Store page (${mas})`);
+    await p.click('#all-apps [data-id="two-degrees"] a.pill'); await p.waitForTimeout(300);
+    check((await calls(p)).includes('url:' + mas) && /Mac App Store/.test(await p.textContent('.toast')), '… which it opens with the system, in the Mac App Store');
+    for (const id of ['cowdrey-pdf', 'cowdrey-md', 'bearings', 'golden-hour']) {
+      const sel = `#all-apps [data-id="${id}"]`;
+      check((await p.getAttribute(sel + ' a.pill', 'href')) === webOf(id) && /On the web/.test(await p.textContent(sel + ' .pill-wrap'))
+        && /on the web/.test(await p.getAttribute(sel + ' a.pill', 'aria-label')), `${id}, not on the Mac App Store, opens on the web`);
+    }
+    await p.click('#all-apps [data-id="bearings"] a.pill'); await p.waitForTimeout(300);
+    check((await calls(p)).includes('url:' + webOf('bearings')) && /on the web/.test(await p.textContent('.toast')), '… in the default browser');
+    check((await p.textContent('#all-apps [data-id="meridian"] .pill-wrap')).trim() === 'Open', 'Meridian, seen on this Mac, offers Open (not on the web)');
+    await p.click('#all-apps [data-id="meridian"] [data-act="launch"]'); await p.waitForTimeout(200);
+    check((await calls(p)).includes('open_app'), '… which opens it');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    const sheet = await p.textContent('.sheet');
+    check(!/installed|Install/.test(sheet) && !(await p.$('.sheet .reading')), 'Get Every App has no count and no Install All');
+    check((await p.$$('.sheet #setup-rows .row')).length === C.apps.length, '… and lists every app');
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get Two Degrees on the Mac App Store', 'its button opens the one app on the Mac App Store');
+    const before = (await calls(p)).length;
+    await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(400);
+    check((await calls(p)).slice(before).join() === 'url:' + mas, '… in the Mac App Store, and nothing else');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('#all-apps [data-id="bearings"] .main'); await p.waitForTimeout(600);
+    check((await p.textContent('.sheet .hero-actions .pill')).trim() === 'Open on the web', 'an app’s page says Open on the web for an app not on the Mac App Store');
+    check(!(await p.$('.sheet .get-row use[href="#i-mac"]')) && /isn’t on the Mac App Store yet/.test(await p.textContent('.sheet')), '… with no Mac download, just a note');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('#all-apps [data-id="two-degrees"] .main'); await p.waitForTimeout(600);
+    check(/Mac App Store/.test(await p.textContent('.sheet .get-row.here')) && (await p.getAttribute('.sheet .get-row.here a.pill', 'href')) === mas, 'Two Degrees’ page offers the Mac App Store');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('.side-item[data-tab="library"]'); await p.waitForTimeout(300);
+    check(!(await p.$('#view-library .reading')) && /Version 2\.1\.4 · On this Mac/.test(await p.textContent('#view-library')), 'the Library lists Meridian as on this Mac, with no count');
+    check(!(await calls(p)).some((x) => x === 'install_app' || x === 'plugin:installer|native' || ['install', 'canInstall', 'showStore'].includes(x)), 'it never calls the installer');
     await ctx.close();
   }
   console.log('Mac app from GitHub');
   {
     const { ctx, p } = await nativeApp('mac-app-dmg', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, {});
     check((await p.$$('#all-apps use[href="#i-android"]')).length > 0, 'the .dmg version still shows which apps are on Android');
+    check((await p.textContent('#setup-slot .ring b')).trim() === '0/5', '… still counts the five Mac apps');
+    await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
+    check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Install All (5)' && /puts it in Applications/.test(await p.textContent('.sheet')), '… still installs them itself (Install All)');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('#all-apps [data-id="bearings"] .main'); await p.waitForTimeout(600);
+    check(/Download \(\.dmg\)/.test(await p.textContent('.sheet .get-row.here')), '… and still offers each .dmg');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.click('.side-item[data-tab="share"]'); await p.waitForTimeout(300);
+    check(/Chrome/.test(await p.textContent('#view-share')) && /Windows/.test(await p.textContent('#view-share')), '… and its Share screen still has every browser’s steps');
     await ctx.close();
   }
 
@@ -399,6 +452,14 @@ async function open(ctx, url, errors, name) {
     check(await p.evaluate(() => window.scrollY) > 0, '(the list is scrolled down)');
     await comeBack(); await p.waitForTimeout(100);
     check(await p.evaluate(() => window.scrollY) === 0, 'opening or switching back to the app starts at the top of the screen');
+    await ctx.close();
+  }
+
+  console.log('iPad app');
+  {
+    const { ctx, p } = await nativeApp('ipad-app', { ...devices['iPad Pro 11'] }, {});
+    check(await p.evaluate(() => window.CowdreyOne.native) === 'ios', 'it knows it is the iPad app');
+    await noAndroid(p, 'the iPad app');
     await ctx.close();
   }
 

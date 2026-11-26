@@ -382,6 +382,8 @@ button.meta { text-align: left; }
 }
 @media (min-width: 1280px) {
   .carousel { grid-auto-columns: calc((100% - 28px) / 3); }
+  /* The App Store versions, three apps across: each card’s subtitle in full, on up to three lines. */
+  .apple-store .feature-bar small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-height: 1.25; }
 }
 @media (max-width: 899px) {
   .apps-grid .group + .group { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
