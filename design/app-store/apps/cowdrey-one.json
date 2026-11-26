@@ -1,0 +1,43 @@
+{
+ "app": "Cowdrey One",
+ "slug": "cowdrey-one",
+ "sky": ["#C9835B", "#93512F"],
+ "captures": "../captures",
+ "out": "../../../docs/app-store",
+ "iphone": [
+  { "id": "discover", "eyebrow": "Discover", "headline": ["Every app,", "in one place."],
+    "subhead": "Every Cowdrey app, one tap each.", "capture": "iphone-discover.png" },
+  { "id": "app", "eyebrow": "App pages", "headline": ["See it before", "you get it."],
+    "subhead": "Screenshots, platforms and what’s new.", "capture": "iphone-app.png" },
+  { "id": "library", "eyebrow": "Library", "headline": ["Always up", "to date."],
+    "subhead": "See what’s installed and what’s new.", "capture": "iphone-library.png" },
+  { "id": "get", "eyebrow": "Get apps", "headline": ["One tap", "to get it."],
+    "subhead": "Get opens the app’s App Store page.", "capture": "iphone-get.png" },
+  { "id": "share", "eyebrow": "Share", "headline": ["Share it", "with anyone."],
+    "subhead": "One code opens every app on any device.", "capture": "iphone-share.png" }
+ ],
+ "ipad": [
+  { "id": "discover", "eyebrow": "Discover", "headline": ["Every app,", "in one place."],
+    "subhead": "Every Cowdrey app, one tap each.", "capture": "ipad-discover.png" },
+  { "id": "app", "eyebrow": "App pages", "headline": ["See it before", "you get it."],
+    "subhead": "Screenshots, platforms and what’s new.", "capture": "ipad-app.png" },
+  { "id": "library", "eyebrow": "Library", "headline": ["Always up", "to date."],
+    "subhead": "See what’s installed and what’s new.", "capture": "ipad-library.png" },
+  { "id": "get", "eyebrow": "Get apps", "headline": ["One tap", "to get it."],
+    "subhead": "Get opens the app’s App Store page.", "capture": "ipad-get.png" },
+  { "id": "share", "eyebrow": "Share", "headline": ["Share it", "with anyone."],
+    "subhead": "One code opens every app on any device.", "capture": "ipad-share.png" }
+ ],
+ "mac": [
+  { "id": "discover", "title": "Cowdrey One", "eyebrow": "Discover", "headline": ["Every app,", "in one place."],
+    "subhead": "Every Cowdrey app, one click each.", "capture": "mac-discover.png" },
+  { "id": "app", "title": "Cowdrey One", "eyebrow": "App pages", "headline": ["See it before", "you get it."],
+    "subhead": "Screenshots, platforms and what’s new.", "capture": "mac-app.png" },
+  { "id": "library", "title": "Cowdrey One", "eyebrow": "Library", "headline": ["Always up", "to date."],
+    "subhead": "See what’s installed and what’s new.", "capture": "mac-library.png" },
+  { "id": "get", "title": "Cowdrey One", "eyebrow": "Get apps", "headline": ["One click", "to get it."],
+    "subhead": "Install All puts every app in Applications.", "capture": "mac-get.png" },
+  { "id": "share", "title": "Cowdrey One", "eyebrow": "Share", "headline": ["Share it", "with anyone."],
+    "subhead": "One code opens every app on any device.", "capture": "mac-share.png" }
+ ]
+}

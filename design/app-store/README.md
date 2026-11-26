@@ -1,105 +1,125 @@
-# The Cowdrey family App Store screenshot standard
+# Cowdrey family App Store screenshot standard
 
-Every Cowdrey app's App Store screenshots are made with one template, [`store-frame.mjs`](store-frame.mjs), so every
-set has the same type, the same sizes and the same device placement, and the apps look like one family side by side.
-This is the master copy. Each app keeps a **word-for-word copy** of it; change it here, then copy it to every app.
+Every Cowdrey app (Cowdrey One, Cowdrey.PDF, Cowdrey.MD, Meridian, Two Degrees and Bearings) uses this one standard for its App Store screenshots. Each frame puts the real app on the app's own catalog sky, under an eyebrow, a Fraunces headline and a one-line subhead set in **Cowdrey One's type scale**. The look comes from Bearings' approved framed screenshots (`bearings/scripts/store-frames.js`, `ci-appstore` branch). Only the sky colour and the words change from app to app. Fonts, sizes, positions and device frames are the same for every app.
 
-## Type: Cowdrey One's
+This is Cowdrey One's copy of the family standard. The compositor [`store-frames.js`](store-frames.js) implements it exactly. It also measures every frame it writes (`measure.json`), [`check-measure.js`](check-measure.js) checks those measurements against sections 2 and 3, and stops with an error if copy does not fit, and the type is never shrunk to fit.
 
-| | Font | Setting |
+## 1. Canvases
+
+| Device | Canvas (px) | Store scale | Needed |
+|---|---|---|---|
+| iPhone 6.9" | **1320 x 2868** | x3 (the iPhone's own @3x) | every app |
+| iPad 13" | **2064 x 2752** | x4 | every app with an iPad listing |
+| Mac | **2880 x 1800** | x3 | only apps with a Mac App Store listing (a `macappstore` link in the catalog, or a Mac listing in the repo) |
+
+Output: opaque RGB PNG with no alpha channel, as App Store Connect requires.
+
+The *store scale* turns Cowdrey One's point sizes into canvas pixels. The iPhone uses x3, its native density. The iPad uses x4, so the headline takes about the same share of the thumbnail as it does on iPhone (x2 would make it tiny on a 2064-wide canvas). The Mac uses x3.
+
+## 2. Type scale: Cowdrey One's points x store scale
+
+The source is `cowdrey-one/web/app.css`.
+
+| Role | Cowdrey One source | Font | Weight | Size (pt) | iPhone px | iPad px | Mac px | Line height | Tracking | Case | Max lines | Colour |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Eyebrow | `.eyebrow` (13px 600, uppercase, +.02em) | Inter SemiBold (Cowdrey One's system sans) | 600 | 13 | **39** | **52** | **39** | 1.0 | +0.02em (0.78 / 1.04 / 0.78 px) | UPPERCASE | 1 | `rgba(255,255,255,.78)` (`.feature-top .eyebrow`) |
+| Headline | `.large-title` (Fraunces 560 36px/1.05, -.015em) | Fraunces (variable, opsz 72) | 560 | 36 | **108** | **144** | **108** | 1.05 (113.4 / 151.2 / 113.4 px) | -0.015em (-1.62 / -2.16 / -1.62 px) | Sentence case | iPhone **exactly 2**; iPad and Mac **1** | `#FFFFFF` |
+| Subhead | body 17px, the weight of `.feature-bar b` | Inter SemiBold | 600 | 17 | **51** | **68** | **51** | 1.2 | -0.01em (-0.51 / -0.68 / -0.51 px) | Sentence case | 1 | `rgba(255,255,255,.92)` |
+
+All text is centred. The sans is Inter (OFL, bundled), which stands in for Cowdrey One's `-apple-system / SF Pro` stack. SF Pro cannot be bundled, and a fixed font keeps renders the same on any machine.
+
+## 3. Text block: margins and position
+
+| | iPhone | iPad | Mac |
+|---|---|---|---|
+| Side margin (text block) | 70 px | 140 px | 200 px |
+| Text block top (eyebrow line box) | 150 | 160 | 110 |
+| Eyebrow to headline gap | 24 | 32 | 24 |
+| Headline to subhead gap | 30 | 36 | 26 |
+| **Measured** eyebrow baseline | **184** | **204** | **144** |
+| **Measured** headline top (line box) | **213** | **244** | **173** |
+| **Measured** subhead bottom | **531** | **513** | **374** |
+| Device top | **640** | **600** | **470** |
+
+On the iPhone the headline is always two lines, so every iPhone frame has the same block height and the device always starts at 640. On the iPad and the Mac the headline is one line.
+
+## 4. Device frames
+
+**iPhone 6.9"**
+- Body: 1024 px wide (**77.6% of the canvas**), centred, top 640, height 2138 (bottom at 2778).
+- Body colour: titanium, `linear-gradient(135deg, #8a8d93 0%, #43464b 14%, #26282c 45%, #2e3034 70%, #55585e 88%, #9a9da3 100%)`.
+- Rim 11 px (1.1% of the body), then a black bezel (`#000`) with a faint 2 px inner line `rgba(255,255,255,.07)`.
+- Screen inset 37 px (3.6% of the body). Screen 950 x 2064, which is the 1320:2868 shape. Each capture is fitted to this shape, so every iPhone is the same size.
+- Screen corner radius 62 pt (133.9 px). Body corner radius 171 px.
+- Dynamic Island: 126 x 37.33 pt (272 x 81 px at frame scale), 11 pt (24 px) below the screen top, fully round, black, with a lens dot.
+- Buttons: Action, volume up and down on the left; side button and Camera Control on the right. Graphite gradient, drawn 0.65% outside the body.
+- Shadow: `0 72px 133px rgba(3,9,22,.5), 0 12px 31px rgba(3,9,22,.32)`.
+
+**iPad 13"**
+- Body 1560 px wide (**75.6%**), centred, top 600, height 2049 (bottom at 2649).
+- Same titanium body. Rim 10 px (0.65%), screen inset 47 px (3%), screen 1466 x 1955.
+- Screen radius 18 pt (25.6 px). Front camera dot on the right bezel. Top button and volume buttons.
+
+**Mac**
+- A plain macOS window 1840 px wide (**63.9%**), centred, top 470.
+- Title bar 56 px, `#24272E`, with traffic lights and the document title in Inter 600 22 px `#C9CED8`.
+- Content 1840 x 1150 (16:10). Corner radius 22 px. Same family shadow.
+
+## 5. Background: the app's catalog sky
+
+- Colours: the app's `sky: [top, bottom]` from `cowdrey-one/web/catalog.js`. Cowdrey One itself is not in its own catalog, so it uses its icon's clay gradient.
+- Direction: **170deg** (`linear-gradient(170deg, top 0%, bottom 100%)`), the same angle as Cowdrey One's app cards and app pages (`.feature`, `.hero`).
+- Glow: `radial-gradient(110% 55% at 50% -6%, rgba(255,255,255,.20), transparent 62%)` at the top.
+- Floor: `radial-gradient(90% 40% at 50% 106%, rgba(0,0,0,.18), transparent 70%)` at the bottom.
+
+| App | Sky top | Sky bottom |
 |---|---|---|
-| Headline | **Fraunces** (variable; `web/fonts/fraunces.woff2`, SIL Open Font License) | weight 560, optical size 48, letter-spacing −0.012em, line-height 1.04, centred, balanced |
-| Sub-line | **Instrument Sans** (variable; [`instrument-sans.woff2`](instrument-sans.woff2), SIL Open Font License: [licence](InstrumentSans-LICENSE.txt)) | weight 500, letter-spacing −0.005em, line-height 1.25, centred, balanced |
-| Mac title bar | Instrument Sans | weight 600, 22 px (plain window); 13 pt on the desktop |
-| Mac menu bar | Instrument Sans | 13.5 pt, weight 500 (the app's name 700), white on a 32 pt bar |
+| Cowdrey One | `#C9835B` | `#93512F` |
+| Cowdrey.PDF | `#B0234F` | `#5E0A28` |
+| Cowdrey.MD | `#4B70E6` | `#1E3BA6` |
+| Meridian | `#4A7DB8` | `#16243A` |
+| Two Degrees | `#72AAE9` | `#204294` |
+| Bearings | `#3D74B0` | `#14243B` |
 
-Fraunces at 560 / opsz 48 / −0.012em is exactly how Cowdrey One sets its titles.
+## 6. Frame count and story
 
-## Sizes (output pixels)
+- **iPhone: 5 or 6 frames.** Frame 1 is the app's main screen, and its headline is the app's promise (the catalog `headline` where it fits).
+- **iPad: 3 to 5 frames** for the listing.
+- **Mac: 3 to 5 frames**, where a Mac listing exists.
+- Frames are real captures of the current app. Nothing is drawn that the app does not draw.
 
-| | Canvas | Headline | Sub-line | Gap | Side margin | Copy top | Device |
-|---|---|---|---|---|---|---|---|
-| **iPhone 6.9"** | 1320 × 2868 | 118 px | 54 px | 30 | 70 | hangs from the phone: the sub-line's baseline sits 96 px above it | top at 560 (460 for a set whose headlines are all one line); screen 440 × 956 pt at 2.28× in a graphite frame |
-| **iPad 13"** | 2064 × 2752 | 128 px | 59 px | 32 | 150 | 150 | top at 620; screen 1032 × 1376 pt at 1.42× |
-| **Mac** | 2880 × 1800 | 104 px | 48 px | 24 | 300 | 112 | a **MacBook** (14" MacBook Pro in silver) showing the app on a macOS desktop: lid top at 340, the base's front edge from x 300 to 2580 (bottom 1747), screen 2000 × 1299 px at (440, 371) showing a 1512 × 982 pt desktop at 2× (3024 × 1964 px) made by `desktop()`. (The older plain window, `device` left out: 2280 px wide, an app of 1180 × 700 pt, 28 pt title bar, top at 340.) |
+Optional effects, Bearings' own, available to every app:
+- **Lift:** a tile is drawn about 1.2x over its place, and the rest of the screen is dimmed to 50%.
+- **Zoom:** the content zooms around a point, and named regions such as buttons and credits stay unzoomed or move.
+- **Widgets frame:** real widget renders float on the sky in the device's place.
 
-## The rules
+## 7. Copy rules
 
-- **The real app, in dark mode.** Capture the actual app at the device's size (iPhone 1320 × 2868, iPad 2064 × 2752,
-  Mac windows at 2× of their point size) with realistic, fictional content. No mock-ups and no personal data.
-- **Copy.** A headline of one or two lines and one sub-line that wraps at most once. Every headline in a set has the
-  same number of lines (pass `lines` for the set). The template refuses copy that runs into the device or off the top.
-- **Colour.** Each app has its theme in `THEMES` (a dark ground in the app's own hue, its glow and floor, the ink and
-  sub-line colours, and `desk`, its MacBook desktop's wallpaper). Nothing else changes between apps.
-- **Output.** Opaque RGB PNGs (App Store Connect refuses an alpha channel) at the exact App Store sizes above.
+- **Eyebrow:** the feature in 1 or 2 words ("Compass", "Fill & sign").
+- **Headline:** 2 to 5 words, ending with a full stop, set in Fraunces. On the iPhone it is written as two lines, and the break must not leave a lone word when that can be avoided ("Fill it. / Sign it."). On the iPad and the Mac the two lines are joined into one.
+- **Subhead:** one plain sentence, ending with a full stop. It must fit on one line: about 42 characters on the iPhone and 46 on the iPad.
+- Plain words, British/US spelling as the app uses it, no exclamation marks, no prices or "best".
+- Copy that does not fit is rewritten. It is never set smaller.
 
-| App | Theme | Its App Store screenshot generator |
-|---|---|---|
-| Cowdrey.PDF | `pdf` | `tests/app-store-screens.mjs` |
-| Cowdrey.MD | `md` | `tests/app-store-screens.mjs` |
-| Meridian | `meridian` | `scripts/appstore-shots.mjs` |
-| Two Degrees | `twodegrees` | `scripts/app-store-screens.mjs` |
-| Bearings | `bearings` | `scripts/store-frames.mjs` |
-| Golden Hour | `goldenhour` | `tests/app-store-screens.mjs` (iPhone only; the app is iPhone-only) |
-| Cowdrey One | `one` | `tests/app-store-screens.mjs` (`npm run screens`), using this master copy |
+## 8. Cowdrey One's frames
 
-## Using it
+- Words: [`apps/cowdrey-one.json`](apps/cowdrey-one.json). Five frames each for iPhone, iPad and Mac (Cowdrey One has
+  a Mac listing), named `<device>-<n>-<id>.png`, written to `docs/app-store/` with `measure.json`.
+- Raw captures: `tests/app-store-screens.mjs` captures the real web app in Chromium, with its iPhone, iPad and Mac
+  side stood in for as in `tests/e2e.cjs`, into `design/app-store/captures/` (not kept in git). They are not native
+  simulator captures, so it draws iOS's status bar (9:41, signal, Wi-Fi, full battery) in the top safe area.
+- No "free", prices, beta or TestFlight in the words: App Review turns down screenshots with them.
 
-```js
-import { compose, THEMES } from './store-frame.mjs';
-const fonts = { fraunces: <base64 of fraunces.woff2>, instrument: <base64 of instrument-sans.woff2> };
-const png = await compose(browser, 'iphone', { head: 'Every time zone\nat a glance.', sub: 'Your cities, photos and hours side by side.',
-  png: rawScreenPng, title: 'Meridian', lines: 2, file: 'iphone-1-main.png' }, THEMES.meridian, fonts);
+## 9. Making the frames
+
+```
+npm ci && npx playwright install chromium
+npm run screens                 # captures, frames into docs/app-store, then checks measure.json against the standard
+npm run screens -- --reuse      # frames the captures already in design/app-store/captures
+npm run screens:check           # checks docs/app-store/measure.json again
 ```
 
-`browser` is a Playwright Chromium browser; `\n` in a headline is a line break.
+The iPhone app workflow (`.github/workflows/ios-app.yml`, job "App Store screenshots") does the same on every run
+and publishes the frames as the `app-store-screenshots` artifact, for review only: nothing is sent to App Store Connect.
 
-### The Mac: the app on a MacBook
-
-Every app's Mac pictures show the app on a MacBook, on the same desktop. First draw the desktop (the MacBook's whole
-screen) with `desktop()`, then frame it with `device: 'macbook'`:
-
-```js
-import { compose, desktop, THEMES } from './store-frame.mjs';
-const screen = await desktop(browser, {
-  theme: THEMES.twodegrees, app: 'Two Degrees', fonts,                 // no clock: every app shows MAC_CLOCK
-  menuExtra: { text: '55° · 13°', icon: 'sun' },          // the app's menu-bar item, if it has one
-  windows: [{ png: windowCapture, w: 800, h: 520, chrome: 'none', lights: true }],   // points; x, y left out = centred
-  extras: [{ png: widgetPng, x: 60, y: 80, w: 344, h: 344 }],                      // widgets, under the windows
-});
-const png = await compose(browser, 'mac', { head: 'Every temperature in °F and °C', sub: 'Both units, side by side.',
-  device: 'macbook', png: screen, file: 'mac-1.png' }, THEMES.twodegrees, fonts);
-```
-
-- `desktop(browser, { theme, app, windows, extras?, menuExtra?, dock?, fonts? })` returns a 3024 × 1964 RGB
-  PNG: a 1512 × 982 pt screen at 2× with the app's wallpaper (`theme.desk`), a 32 pt macOS menu bar
-  (Apple menu, the app's name in bold, File Edit View Window Help; the app's extra, Wi-Fi, a full battery, Control
-  Center, the clock) and the windows. Everything is in points.
-- `windows: [{ png, x?, y?, w, h, title?, chrome?, lights? }]`: the window's outer box. `chrome: 'window'` (default)
-  adds a 28 pt dark title bar with the traffic lights and `title` (default: `app`) and puts `png` under it; `'none'`
-  shows `png` as the whole window, for an app that draws its own title bar (`lights: true` adds the traffic lights).
-  10 pt corners, a fine rim and macOS's shadow. Capture the window at 2× its point size.
-- **Which chrome.** An app whose capture already contains its own toolbar or title (a unified/transparent title bar
-  drawn by the app) uses `chrome: 'none', lights: true`. An app whose capture has no title bar uses
-  `chrome: 'window'` with the app's name as the title (the default `title`). Never both, never neither.
-- **Window size.** Windows are shown at their real point size: `w`, `h` are the window's points and the 2× capture
-  is drawn at 0.5 (`scale` 1, the default). Only a window narrower than 600 pt may be enlarged so it reads:
-  `windows[i].scale` from 1 up to 1.5 (the box becomes `w × scale` by `h × scale`, chrome included; `x`, `y` place the
-  enlarged box). Any other `scale` (below 1, above 1.5, or above 1 on a window 600 pt or wider) is refused.
-- **One clock.** The menu bar's clock is `MAC_CLOCK` (`'Wed Nov 25  9:41 AM'`), the default of `desktop()`, so every
-  app's desktop shows the same time. Apps must not pass their own `clock`, with a single exception: an app whose
-  captured window itself shows the current time (a clock, a "now" line, an "Updated 8:36 PM" stamp) passes
-  `desktop({ clock })` set to that same time, formatted exactly like `MAC_CLOCK` (day, date, two spaces, time:
-  `'Wed Nov 25  8:36 PM'`), so the menu bar never contradicts the app. Every other app keeps `MAC_CLOCK`.
-- **Wallpapers.** Each theme's `desk: [top, middle, bottom]` is its desktop: md indigo ink, pdf raspberry wine,
-  meridian teal night, twodegrees sky blue to a peach dusk, bearings compass blue to ice, goldenhour amber gold,
-  one clay terracotta. Each is lighter than its page's ground and differs from the others at thumbnail size. A
-  custom theme without `desk` gets a wallpaper worked out from its ground's hue.
-- `extras: [{ png, x, y, w, h, radius? }]`: widgets on the desktop (22 pt corners unless `radius`).
-- `menuExtra: { text, icon? }`: `icon` is `'sun'`, an `<svg>` string drawn in white (`currentColor`) or a PNG Buffer.
-- `dock`: left out or `false` (the Dock hidden, as many people keep it), or `{ icon: png }` for a Dock with the app's
-  icon and its running dot.
-- Keep the menu bar's middle (the notch, 190 pt) clear: nothing is drawn there.
-- `MACBOOK` exports the geometry (the screen is 2000 × 1299 px at (440, 371) on the canvas).
-- `node design/app-store/self-check.mjs [out-dir]` renders one MacBook and one plain-window Mac picture and checks
-  their sizes and that they are RGB.
+The fonts are in `fonts/`: Fraunces and Inter, both under the SIL Open Font License, with their licence files.

@@ -4,3 +4,4 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/
 .DS_Store
 __pycache__/
+design/app-store/captures/
