@@ -485,6 +485,7 @@ async function open(ctx, url, errors, name) {
     check(/Download \(\.dmg\)/.test(await p.textContent('.sheet .get-row.here')), '… and still offers each .dmg');
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('.side-item[data-tab="share"]'); await p.waitForTimeout(300);
+    check((await p.textContent('.side-item[data-tab="share"] span')) === 'Get on Your Phone' && (await p.textContent('#t-share')) === 'Get on Your Phone', '… its sidebar and Share page both say Get on Your Phone');
     check(/Chrome/.test(await p.textContent('#view-share')) && /Windows/.test(await p.textContent('#view-share')), '… and its Share screen still has every browser’s steps');
     check((await p.textContent('#view-share .url')).trim() === C.hubUrl, '… and its QR code still opens the web app as before');
     await p.click('.side-item[data-tab="library"]'); await p.waitForTimeout(300);
@@ -627,6 +628,12 @@ async function open(ctx, url, errors, name) {
     await p.evaluate(() => document.querySelector('.side-item[data-tab="share"]').click()); await p.waitForTimeout(300);
     const url = await p.evaluate(() => { const e = document.querySelector('#view-share .url'); const r = document.createRange(); r.selectNodeContents(e); return { lines: new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size, html: e.innerHTML }; });
     check(/<wbr>\?store=apple$/.test(url.html), `Share’s link may wrap only before its ? (${url.html}, ${url.lines} line${url.lines > 1 ? 's' : ''})`);
+    const names = await p.evaluate(() => [document.querySelector('.side-item[data-tab="share"] span').textContent, document.querySelector('#t-share').textContent]);
+    check(names[0] === 'Share' && names[1] === 'Share', `the sidebar names Share as its page does (${names.join(' / ')})`);
+    await p.evaluate(() => document.querySelector('.side-item[data-tab="discover"]').click()); await p.waitForTimeout(300);
+    await p.evaluate(() => document.querySelector('#setup-slot [data-act="setup"]').click()); await p.waitForTimeout(700);
+    const g = await p.evaluate(() => { const b = document.querySelector('.sheet').getBoundingClientRect(), d = document.querySelector('.sheet [data-act="close"]:not(.sheet-close)').getBoundingClientRect(); return { short: document.querySelector('.sheet').classList.contains('short'), top: Math.round(b.top), below: Math.round(innerHeight - b.bottom), done: d.bottom <= b.bottom }; });
+    check(g.short && g.top > 40 && g.below > 40 && Math.abs(g.top - g.below) <= 2 && g.done, `Get Every App is a sheet the height of its list, centred, Done inside it (${JSON.stringify(g)})`);
     await ctx.close();
   }
 

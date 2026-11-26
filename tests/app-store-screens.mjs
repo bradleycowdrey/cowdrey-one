@@ -220,21 +220,28 @@ const toCleanCut = async (p) => p.evaluate(() => {
   throw new Error('no scroll position ends the iPad page between lines');
 });
 
-// On the iPhone, Share is scrolled the least that shows this iPhone's steps whole above the floating tab bar, with no
-// line of words cut by the bar's top edge.
-const toClearTabBar = async (p) => p.evaluate(() => {
+// On the iPhone, a page is scrolled the least that shows what it is about (want: a selector, its last match) whole
+// above the floating tab bar, with no line of words, icon or row cut by the bar's top edge, while what the picture is
+// for (keep: a selector, its first match) stays whole below the navigation bar. Where such a scroll can also end the
+// screen between lines, it does; otherwise the page runs on under the bar, as Discover's does.
+const toClearTabBar = async (p, view, want, keep) => p.evaluate(([v, w, k]) => {
   const bar = document.querySelector('.tabbar').getBoundingClientRect().top - 8;
-  const view = document.querySelector('#view-share');
-  const lines = [];
-  const walk = document.createTreeWalker(view, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
-  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); lines.push(...[...r.getClientRects()].map((x) => [x.top + scrollY, x.bottom + scrollY])); }
-  const mine = document.querySelector('#view-share .how h4 .here-tag').closest('.how').querySelector('.steps').getBoundingClientRect().bottom + scrollY;
-  const max = document.documentElement.scrollHeight - innerHeight;
-  for (let y = Math.max(0, Math.ceil(mine - bar)); y <= max; y++) {
-    if (lines.every(([t, b]) => b - y <= bar || t - y >= bar)) return window.scrollTo(0, y), y;
-  }
-  throw new Error('no scroll position shows this iPhone’s steps clear of the tab bar');
-});
+  const nav = document.querySelector('.navbar').getBoundingClientRect().bottom;
+  const root = document.querySelector(v);
+  const spans = [];
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.textContent.trim() ? 1 : 3) });
+  for (let n; (n = walk.nextNode());) { const r = document.createRange(); r.selectNodeContents(n); spans.push(...[...r.getClientRects()].map((x) => [x.top + scrollY, x.bottom + scrollY])); }
+  for (const e of root.querySelectorAll('img, svg, .row, .pill')) { const r = e.getBoundingClientRect(); if (r.height) spans.push([r.top + scrollY, r.bottom + scrollY]); }
+  const last = [...root.querySelectorAll(w)].pop(), first = root.querySelector(k);
+  if (!last || !first) throw new Error(`nothing matches ${last ? k : w}`);
+  const mine = last.getBoundingClientRect().bottom + scrollY, top = first.getBoundingClientRect().top + scrollY;
+  const max = Math.min(document.documentElement.scrollHeight - innerHeight, Math.floor(top - nav));
+  const cut = (edge, y) => spans.some(([t, b]) => t - y < edge && b - y > edge);
+  const from = Math.max(0, Math.ceil(mine - bar));
+  for (let y = from; y <= max; y++) if (!cut(bar, y) && !cut(innerHeight, y)) return window.scrollTo(0, y), y;
+  for (let y = from; y <= max; y++) if (!cut(bar, y)) return window.scrollTo(0, y), y;
+  throw new Error(`no scroll position shows ${w} clear of the tab bar and ${k} below the navigation bar`);
+}, [view, want, keep]);
 
 // Window heights measured from the app itself (fit), so a window ends at a clean break whatever the words above:
 // - fitGap(sel): the page ends in the middle of the gap between the last card and sel (the next words), never
@@ -275,11 +282,11 @@ const STORIES = [
     sub: (kind) => (kind === 'mac' ? 'On the Mac App Store, or on the web.' : 'One tap for each app, or Get All.'),
     async shoot(p, kind) { if (kind === 'mac') await toClearStrips(p); await tap(p, '#setup-slot [data-act="setup"]'); } },
   { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone,\nready to open.' : `What’s on this\n${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.', fit: fitGap('#view-library .group-label'),
-    async shoot(p) { await tab(p, 'library'); } },
+    async shoot(p, kind) { await tab(p, 'library'); if (kind === 'iphone') { await p.waitForTimeout(400); await toClearTabBar(p, '#view-library', '#view-library .row.app', '#view-library .row.app'); } } },
   // The Mac shows Get on Your Phone (a QR code to scan); the iPhone and iPad show Share (the code and a link to send).
   { slug: 'share', head: (kind) => (kind === 'mac' ? 'Get it on\nyour iPhone.' : 'Share it\nwith a friend.'),
     sub: (kind) => (kind === 'mac' ? 'Scan to get Cowdrey One on your iPhone.' : 'A QR code and a link to Cowdrey One.'), fit: fitGap('#view-share .promise'),
-    async shoot(p, kind) { await tab(p, 'share'); if (kind === 'iphone') { await p.waitForTimeout(400); await toClearTabBar(p); } } },
+    async shoot(p, kind) { await tab(p, 'share'); if (kind === 'iphone') { await p.waitForTimeout(400); await toClearTabBar(p, '#view-share', '#view-share .how:has(.here-tag) .steps', '#view-share .qr'); } } },
 ];
 const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
 

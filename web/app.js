@@ -963,6 +963,9 @@
     $$('.view').forEach((v) => { v.hidden = v.id !== 'view-' + t; });
     $$('.tab, .side-item').forEach((b) => { if (b.dataset.tab === t) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     $('.navbar-title').textContent = t === 'share' && !isPhone() ? 'Get on Your Phone' : titles[t];
+    // The sidebar names Share as its page does: Share on the iPhone and iPad, Get on Your Phone on a computer.
+    const side = $('.side-item[data-tab="share"] span');
+    if (side) side.textContent = isPhone() ? 'Share' : 'Get on Your Phone';
     hist(() => history.replaceState(history.state, '', t === 'discover' ? location.pathname + location.search : '#' + t));
     window.scrollTo(0, 0);
     watchTitle();
@@ -1032,7 +1035,9 @@
       case 'open-app': e.preventDefault(); openApp(t.dataset.id); break;
       case 'tab': closeSheet(); showTab(t.dataset.tab); break;
       case 'slide': { const car = $('.carousel'); car.scrollTo({ left: +t.dataset.i * (car.firstElementChild.offsetWidth + 14), behavior: 'smooth' }); break; }
-      case 'setup': openSheet(setupPage(), { kind: 'setup' }); break;
+      // On an iPad or a wide browser window the list is shorter than the screen, so it opens as a sheet the height of
+      // its list, centred (as iPadOS shows a short form sheet); the Mac app's sheet hangs from the window's top.
+      case 'setup': openSheet(setupPage(), { kind: 'setup', short: NATIVE !== 'mac' && matchMedia('(min-width: 900px)').matches }); break;
       case 'about': openSheet(aboutPage(), { kind: 'about' }); break;
       case 'close': closeSheet(); break;
       case 'agree': store.set('terms', { v: C.termsVersion, at: Date.now() }); sheet && (sheet.dataset.locked = ''); closeSheet(); break;
