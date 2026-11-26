@@ -376,9 +376,21 @@ button.meta { text-align: left; }
   .mac-app main { padding-top: 20px; }
   .sheet.on { transform: translate(-50%, -50%); opacity: 1; }
   .hero { border-radius: 22px 22px 0 0; }
+  /* The Mac App Store version: a sheet hangs from the top of the window, as a Mac sheet does, so no strip of the page
+     shows above it. The Mac app from GitHub keeps the centred sheet. */
+  .apple-store.mac-app .sheet { top: 0; height: min(860px, calc(100dvh - 30px)); border-radius: 0 0 22px 22px; transform: translate(-50%, -24px); }
+  .apple-store.mac-app .sheet.short { max-height: calc(100vh - 30px); max-height: calc(100dvh - 30px); }
+  .apple-store.mac-app .sheet.on { transform: translate(-50%, 0); }
+  .apple-store.mac-app .hero { border-radius: 0; }
   .grabber { display: none; }
   .toast { bottom: 28px; margin-left: calc(var(--side) / 2); }
   .navbar { display: none; }
+}
+/* The iPhone and iPad app on an iPad (two apps across): each card's subtitle and each app's line in full, on up to three
+   lines, never cut short. */
+@media (min-width: 900px) and (max-width: 1279px) {
+  .apple-store:not(.mac-app) .feature-bar small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-height: 1.25; }
+  .apple-store:not(.mac-app) .apps-grid .row .sub.clamp { -webkit-line-clamp: 3; }
 }
 @media (min-width: 1280px) {
   .carousel { grid-auto-columns: calc((100% - 28px) / 3); }

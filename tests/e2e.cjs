@@ -203,6 +203,58 @@ async function open(ctx, url, errors, name) {
     await ctx.close();
   }
 
+  // ---------- The web, as before, and behind an App Store version's link (?store=apple) ----------
+  console.log('iPhone, in a browser: as before');
+  {
+    const { ctx } = await context(browser, base, { ...devices['iPhone 15 Pro'] }, current);
+    await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
+    const p = await open(ctx, base + '?app=bearings', errors, 'iphone-web');
+    await p.waitForTimeout(1500);
+    check(/Beta on TestFlight/.test(await p.textContent('.sheet #get-rows')), 'the web still offers the TestFlight beta');
+    check((await p.getAttribute('.sheet #whats-new a', 'href')) === 'https://github.com/x' && /Release notes on GitHub/.test(await p.textContent('.sheet #whats-new')), '… and Release notes on GitHub, to the release');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    await p.click('.tab[data-tab="share"]'); await p.waitForTimeout(300);
+    check(!!(await p.$(`#view-share a[href="${C.hubDownloads.ios}"]`)) && (await p.textContent('#view-share .url')).trim() === C.hubUrl, '… and Share’s “Or get the iPhone app” and QR code as before');
+    await ctx.close();
+  }
+  console.log('The web app behind an App Store version’s link');
+  for (const [name, opts] of [['Mac', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }], ['iPhone', { ...devices['iPhone 15 Pro'] }], ['Android', { ...devices['Pixel 7'] }]]) {
+    const { ctx } = await context(browser, base, opts, current);
+    await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
+    const p = await open(ctx, base + '?store=apple', errors, 'store-link-' + name);
+    await p.waitForTimeout(1500);
+    const go = (t) => p.evaluate((t) => document.querySelector(`.side-item[data-tab="${t}"], .tab[data-tab="${t}"]`).click(), t);
+    const bad = [];
+    const look = async (what) => {
+      const hrefs = await p.evaluate(() => [...document.querySelectorAll('[href]')].map((e) => e.getAttribute('href')));
+      const h = hrefs.find((x) => /\.(?:dmg|apk)(?:$|[?#])|testflight\.apple\.com|\/releases(?:$|[/?#])/i.test(x));
+      const t = (await p.textContent('body')).match(/TestFlight|\bbeta\b|Download All|Download \(/i);
+      if (h || t) bad.push(`${what}: ${h || t[0]}`);
+    };
+    for (const t of ['discover', 'library', 'share']) { await go(t); await p.waitForTimeout(250); await look(t); }
+    await go('discover'); await p.waitForTimeout(250);
+    for (const a of C.apps) {
+      await p.evaluate((id) => document.querySelector(`#all-apps [data-id="${id}"] .main`).click(), a.id); await p.waitForTimeout(450);
+      await look(a.name);
+      await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    }
+    await p.evaluate(() => document.querySelector('#setup-slot [data-act="setup"]').click()); await p.waitForTimeout(400);
+    await look('Get Every App');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    check(!bad.length, `${name}: it offers no .dmg, APK, beta or GitHub release anywhere${bad.length ? ` (it does on ${bad.join(', ')})` : ''}`);
+    await go('share'); await p.waitForTimeout(250);
+    check((await p.textContent('#view-share .url')).trim() === C.hubUrl + '?store=apple', `${name}: its own QR code and link keep ?store=apple`);
+    await p.goto(base + '#library'); await p.waitForTimeout(800);
+    check(await p.evaluate(() => !document.querySelector('[href$=".dmg"], [href$=".apk"], [href*="testflight"]')), `${name}: it remembers ?store=apple for the visit`);
+    if (name === 'Mac') {
+      await p.evaluate(() => document.querySelector('.side-item[data-tab="discover"]').click()); await p.waitForTimeout(250);
+      const mas = C.apps.find((a) => a.id === 'two-degrees').platforms.mac.get.find((o) => o.kind === 'macappstore').url;
+      check((await p.getAttribute('#all-apps [data-id="two-degrees"] a.pill', 'href')) === mas, 'Mac: Two Degrees opens the Mac App Store');
+      check((await p.getAttribute('#all-apps [data-id="bearings"] a.pill', 'href')) === C.apps.find((a) => a.id === 'bearings').platforms.web.get[0].url, 'Mac: Bearings opens on the web');
+    }
+    await ctx.close();
+  }
+
   // ---------- The native apps, with their native side stood in for ----------
   function fakeNative(cfg) {
     window.__calls = [];
@@ -264,13 +316,18 @@ async function open(ctx, url, errors, name) {
   // browser or system (Chrome, Edge, Windows); and nothing about downloading or installing apps (guidelines 2.4.5 and
   // 2.5.2): no .dmg or APK, in words or links, no Install All, no "puts it in Applications".
   const OTHER = /Android|Google Play|Chrome|\bEdge\b|Windows|Linux|\.dmg\b|\bDMG\b|\bAPK\b|Install All|Download All|Download \(|in Applications/;
+  // Nor a beta or TestFlight (guideline 2.2), in words or links, nor a link to GitHub releases, which list the .dmg and
+  // APK files (2.4.5).
+  const BETA = /TestFlight|\b[Bb]eta\b/;
+  const BAD_LINK = /testflight\.apple\.com|github\.com\/[^/]+\/[^/]+\/releases/i;
   const noAndroid = async (p, where) => {
     const seen = [];
     const look = async (what) => {
       const t = await p.evaluate(() => document.body.innerText + ' ' + [...document.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).join(' '));
       const files = await p.evaluate(() => [...document.querySelectorAll('[href]')].map((e) => e.getAttribute('href')).filter((h) => /\.(?:dmg|apk|zip)(?:$|[?#])/i.test(h)));
-      const m = t.match(OTHER);
-      if (m || files.length || (await p.$$('use[href="#i-android"]')).length) seen.push(`${what}: ${m ? m[0] : files[0] || 'the Android icon'}`);
+      const bad = await p.evaluate((re) => [...document.querySelectorAll('[href]')].map((e) => e.getAttribute('href')).filter((h) => new RegExp(re, 'i').test(h)), BAD_LINK.source);
+      const m = t.match(OTHER) || t.match(BETA);
+      if (m || files.length || bad.length || (await p.$$('use[href="#i-android"]')).length) seen.push(`${what}: ${m ? m[0] : files[0] || bad[0] || 'the Android icon'}`);
     };
     const go = (t) => p.evaluate((t) => document.querySelector(`.side-item[data-tab="${t}"], .tab[data-tab="${t}"]`).click(), t);
     for (const t of ['discover', 'library', 'share']) { await go(t); await p.waitForTimeout(250); await look(t); }
@@ -288,7 +345,33 @@ async function open(ctx, url, errors, name) {
     await p.evaluate(() => document.querySelector('#setup-slot [data-act="setup"]').click()); await p.waitForTimeout(400);
     await look('Get Every App');
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
-    check(!seen.length, `${where} shows no Android, other browser or system, or download anywhere${seen.length ? ` (it does on ${seen.join(', ')})` : ''}`);
+    check(!seen.length, `${where} shows no Android, other browser or system, download, beta or GitHub release anywhere${seen.length ? ` (it does on ${seen.join(', ')})` : ''}`);
+  };
+
+  // The App Store versions' links: What's New points at the app's changelog, About at the developer's site (not every
+  // app on GitHub), Source code and Report an issue at the repository, and the QR code and Share link at a page that
+  // offers no downloads (Cowdrey One's App Store page once it has one, else the web app with ?store=apple).
+  const appStoreLinks = async (p, where) => {
+    const go = (t) => p.evaluate((t) => document.querySelector(`.side-item[data-tab="${t}"], .tab[data-tab="${t}"]`).click(), t);
+    await go('discover'); await p.waitForTimeout(250);
+    await p.evaluate(() => document.querySelector('#all-apps [data-id="bearings"] .main').click()); await p.waitForTimeout(500);
+    const wn = await p.$eval('.sheet #whats-new', (e) => [...e.querySelectorAll('a')].map((x) => [x.textContent, x.getAttribute('href')]));
+    check(wn.length === 1 && wn[0][1] === 'https://github.com/bradleycowdrey/bearings/blob/main/CHANGELOG.md' && !/Release notes/.test(wn[0][0]),
+      `${where}: What’s New links to Bearings’ CHANGELOG.md, not its releases (${JSON.stringify(wn)})`);
+    const info = await p.$$eval('.sheet a.row.info', (els) => els.map((e) => [e.querySelector('.k').textContent, e.getAttribute('href')]));
+    const src = info.find((x) => x[0] === 'Source code'), issue = info.find((x) => x[0] === 'Report an issue');
+    check(src && src[1] === 'https://github.com/bradleycowdrey/bearings' && issue && issue[1] === 'https://github.com/bradleycowdrey/bearings/issues', `${where}: Source code and Report an issue go to the repository`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    await go('library'); await p.waitForTimeout(250);
+    await p.evaluate(() => document.querySelector('#view-library [data-act="about"]').click()); await p.waitForTimeout(350);
+    const about = await p.textContent('.sheet');
+    check(!/Every app on GitHub/.test(about) && !!(await p.$('.sheet a[href="https://bradcowdrey.com"]')), `${where}: About has no “Every app on GitHub”, and links to bradcowdrey.com`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    await go('share'); await p.waitForTimeout(250);
+    const hub = C.hubDownloads.appstore || C.hubUrl + '?store=apple';
+    check((await p.textContent('#view-share .url')).trim() === hub && (await p.getAttribute('#view-share .qr svg', 'aria-label')) === 'QR code for ' + hub, `${where}: the QR code and link open ${hub}`);
+    check(!/Or get the iPhone app/.test(await p.textContent('#view-share')) && !(await p.$('#view-share a[href*="testflight"]')), `${where}: Share offers no TestFlight link`);
+    await go('discover'); await p.waitForTimeout(250);
   };
 
   console.log('Mac app from the Mac App Store');
@@ -296,6 +379,7 @@ async function open(ctx, url, errors, name) {
     const { ctx, p } = await nativeApp('mac-app-store', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, { meridian: '2.1.4' }, null, 'appstore');
     check(await p.evaluate(() => window.CowdreyOne.native) === 'mac', 'it knows it is the Mac app');
     await noAndroid(p, 'the Mac App Store version');
+    await appStoreLinks(p, 'the Mac App Store version');
     // Nothing is downloaded or installed: Get opens the Mac App Store, or the web.
     const mas = C.apps.find((a) => a.id === 'two-degrees').platforms.mac.get.find((o) => o.kind === 'macappstore').url;
     const webOf = (id) => C.apps.find((a) => a.id === id).platforms.web.get[0].url;
@@ -315,6 +399,7 @@ async function open(ctx, url, errors, name) {
     check((await calls(p)).includes('open_app'), '… which opens it');
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
     const sheet = await p.textContent('.sheet');
+    check(await p.evaluate(() => Math.round(document.querySelector('.sheet').getBoundingClientRect().top)) === 0, 'its sheets hang from the top of the window, as a Mac sheet does');
     check(!/installed|Install/.test(sheet) && !(await p.$('.sheet .reading')), 'Get Every App has no count and no Install All');
     check((await p.$$('.sheet #setup-rows .row')).length === C.apps.length, '… and lists every app');
     check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get Two Degrees on the Mac App Store', 'its button opens the one app on the Mac App Store');
@@ -332,6 +417,11 @@ async function open(ctx, url, errors, name) {
     await p.click('.side-item[data-tab="library"]'); await p.waitForTimeout(300);
     check(!(await p.$('#view-library .reading')) && /Version 2\.1\.4 · On this Mac/.test(await p.textContent('#view-library')), 'the Library lists Meridian as on this Mac, with no count');
     check(!(await calls(p)).some((x) => x === 'install_app' || x === 'plugin:installer|native' || ['install', 'canInstall', 'showStore'].includes(x)), 'it never calls the installer');
+    // Guideline 2.4.5(vii): no update check of its own. The Mac App Store updates apps.
+    check(!(await p.$('#view-library [data-act="check"]')) && !/Updates/.test(await p.textContent('#view-library')), 'the Library has no Updates · Check row');
+    await p.evaluate(() => window.CowdreyOne.checkUpdates(false)); await p.waitForTimeout(400);
+    check(!/up to date|update available|updates available/.test(await p.evaluate(() => (document.querySelector('.toast') || {}).textContent || '')), '… and checking never says “Every app is up to date.”');
+    check(/Every app, on the Mac App Store or the web/.test(await p.textContent('#setup-slot')), 'the set-up card says where the apps come from');
     await ctx.close();
   }
   console.log('Mac app from GitHub');
@@ -341,12 +431,20 @@ async function open(ctx, url, errors, name) {
     check((await p.textContent('#setup-slot .ring b')).trim() === '0/5', '… still counts the five Mac apps');
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
     check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Install All (5)' && /puts it in Applications/.test(await p.textContent('.sheet')), '… still installs them itself (Install All)');
+    check(await p.evaluate(() => Math.round(document.querySelector('.sheet').getBoundingClientRect().top)) === 30, '… in a sheet centred in the window, as before');
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('#all-apps [data-id="bearings"] .main'); await p.waitForTimeout(600);
     check(/Download \(\.dmg\)/.test(await p.textContent('.sheet .get-row.here')), '… and still offers each .dmg');
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('.side-item[data-tab="share"]'); await p.waitForTimeout(300);
     check(/Chrome/.test(await p.textContent('#view-share')) && /Windows/.test(await p.textContent('#view-share')), '… and its Share screen still has every browser’s steps');
+    check((await p.textContent('#view-share .url')).trim() === C.hubUrl, '… and its QR code still opens the web app as before');
+    await p.click('.side-item[data-tab="library"]'); await p.waitForTimeout(300);
+    check(!!(await p.$('#view-library [data-act="check"]')), '… still has Updates · Check');
+    await p.click('#view-library [data-act="check"]'); await p.waitForTimeout(800);
+    check(/Every app is up to date\.|update/.test(await p.textContent('.toast')), '… which still says what it found');
+    await p.click('#view-library [data-act="about"]'); await p.waitForTimeout(400);
+    check(/Every app on GitHub/.test(await p.textContent('.sheet')), '… and About still links every app on GitHub');
     await ctx.close();
   }
 
@@ -426,6 +524,10 @@ async function open(ctx, url, errors, name) {
     const { ctx, p } = await nativeApp('iphone-app', { ...devices['iPhone 15 Pro'] }, {});
     check((await p.$$('#all-apps use[href="#i-android"]')).length === 0, 'the iPhone app doesn’t show Android');
     await noAndroid(p, 'the iPhone app');
+    await appStoreLinks(p, 'the iPhone app');
+    await p.evaluate(() => document.querySelector('#all-apps [data-id="bearings"] .main').click()); await p.waitForTimeout(500);
+    check(!/beta|TestFlight/i.test(await p.textContent('.sheet #get-rows')) && (await p.$$('.sheet #get-rows .get-row')).length === 2, 'Bearings’ page offers the App Store and the web, and no TestFlight beta');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
     const onStore = C.apps.filter((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore').length;
     check((await p.textContent('.sheet [data-act="bulk"]')).trim() === `Get All (${onStore})`, `Get All covers the ${onStore} apps on the App Store`);
@@ -460,6 +562,9 @@ async function open(ctx, url, errors, name) {
     const { ctx, p } = await nativeApp('ipad-app', { ...devices['iPad Pro 11'] }, {});
     check(await p.evaluate(() => window.CowdreyOne.native) === 'ios', 'it knows it is the iPad app');
     await noAndroid(p, 'the iPad app');
+    await appStoreLinks(p, 'the iPad app');
+    const cut = await p.evaluate(() => [...document.querySelectorAll('.feature-bar small, #all-apps .sub.clamp')].filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+    check(!cut.length, `every card and app line shows its subtitle in full on the iPad${cut.length ? ` (cut: ${cut.join('; ')})` : ''}`);
     await ctx.close();
   }
 

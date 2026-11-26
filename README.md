@@ -35,7 +35,7 @@ Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF and Golden Hour), each in its own
   | **Mac** | **Download All**: every `.dmg` at once, to drag into Applications | **Install All**: downloads each app, checks it’s signed by Bradley Cowdrey’s Apple team, and puts it in Applications. One click. |
   | **Android** | **Download All**: every APK at once, to open and install | **Install All**: hands each APK to Android, which asks “Install?” once per app. Updates to apps it installed go ahead without asking (Android 12 and later). |
   | **iPhone and iPad** | One tap per app: each opens the App Store | **Get All**: each app’s App Store page opens inside Cowdrey One in turn; tap Get, then Done. iOS never lets one app install another. |
-  | **Mac App Store version** | | **Get All**: each app on the Mac App Store opens there in turn; click Get, then come back for the next. An app that isn’t on the Mac App Store opens on the web (**Open on the web**). It never downloads or installs an app, offers a `.dmg`, or counts installed apps. |
+  | **Mac App Store version** | | **Get All**: each app on the Mac App Store opens there in turn; click Get, then come back for the next. An app that isn’t on the Mac App Store opens on the web (**Open on the web**). It never downloads or installs an app, offers a `.dmg`, counts installed apps or checks for updates (no Updates · Check row). |
 
   The Mac and Android apps also see which apps are really installed, and their versions, and offer **Open**.
 - **Only what’s really installed.** Cowdrey One never marks an app as installed because Get was tapped: opening the
@@ -52,6 +52,12 @@ Two Degrees, Meridian, Cowdrey.MD, Cowdrey.PDF and Golden Hour), each in its own
   the product page, the source, issues and the Terms.
 - **Get on Your Phone / Share:** a QR code to open Cowdrey One on a phone (on a Mac, “point your phone’s camera
   here”), Share and Copy Link, and how to keep Cowdrey One on the Home Screen, the Dock or the desktop.
+- **The App Store versions** (the iPhone and iPad app, the Mac App Store version) show no TestFlight or beta
+  (guideline 2.2), link What’s New to each app’s `CHANGELOG.md` rather than its GitHub release (which lists the `.dmg`
+  and APK), and leave out “Every app on GitHub”. Their QR code and Share link open Cowdrey One’s App Store page once
+  `hubDownloads.appstore` is set in `catalog.js`; until then, the web app with `?store=apple`, which then offers no
+  `.dmg`, APK or TestFlight link for the rest of the visit. The web app without it, the Mac app from GitHub and the
+  Android apps are unchanged.
 - **Apple’s look in bradcowdrey.com’s colours:** cream, ink and clay, Fraunces for titles, the system font for
   everything else; a floating tab bar on phones and a sidebar on the Mac; sheets that slide up and pull down;
   light and dark, following the system or chosen in Settings.
@@ -120,6 +126,19 @@ too), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`, plus `ANDROID_KEY_PAS
 differs from the keystore's.
 
 ## Before the first release
+
+- **Mac App Store build: native app detection.** The Mac App Store version is sandboxed, and `src/mac.rs` still
+  finds and opens apps the way the `.dmg` version does: it runs `/usr/bin/plutil` on each app’s `Info.plist`,
+  `/usr/bin/open -b` to open one, and reads `$HOME` for `~/Applications`. In the sandbox `$HOME` is the app’s
+  container (`~/Library/Containers/com.bradcowdrey.cowdreyone/Data`), so `~/Applications` is never found, and
+  launching command-line tools from a sandboxed app is something App Review questions. Before the Mac App Store
+  build is submitted, the `appstore` build should use native APIs instead (not done here, since it can only be
+  compiled and tried on a Mac): `NSWorkspace.shared.urlForApplication(withBundleIdentifier:)` to find each app by its
+  bundle ID wherever it is (no folder scan), `NSBundle(url:).infoDictionary["CFBundleShortVersionString"]` for its
+  version, `NSWorkspace.shared.openApplication(at:configuration:)` to open it, and, if a home folder is still needed,
+  the real one from `getpwuid(getuid())->pw_dir`, not `$HOME` (for example with the `objc2-app-kit` and
+  `objc2-foundation` crates, behind `#[cfg(feature = "appstore")]`). All of these work in the sandbox with no
+  extra entitlement.
 
 - **Terms:** add Cowdrey One to `TERMS.md` in cowdrey-md (Sections 6, 15 and 25), like the other apps; its code is
   under the MIT License like theirs. Then sync the copy here.
