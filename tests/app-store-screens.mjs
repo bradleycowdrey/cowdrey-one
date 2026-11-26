@@ -171,17 +171,18 @@ const toEnd = async (p) => { if (await wide(p)) await p.evaluate(() => window.sc
 
 /* ---------------- the stories ---------------- */
 // One idea each, in the order of the App Store pictures (and of Cowdrey One's Google Play screenshots).
+// Headlines are two lines, so the iPhone sits at the family's two-line height; the Mac joins them into one line
+// (two lines and a sub-line don't fit above the MacBook), as Cowdrey.PDF does.
 const STORIES = [
-  { slug: 'discover', head: 'Every app, one place.', sub: 'All of Bradley Cowdrey’s free apps.', macH: 882,
+  { slug: 'discover', head: 'Every app,\none place.', sub: 'All of Bradley Cowdrey’s free apps.', macH: 882,
     async shoot() {} },
-  { slug: 'app-page', head: 'Know each app.', sub: 'What it does, what’s new, where to get it.', macH: 914,
+  { slug: 'app-page', head: 'Know each app,\ninside and out.', sub: 'What it does, what’s new, where to get it.', macH: 914,
     async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#all-apps [data-id="meridian"] .main'); } },
-  { slug: 'get-every-app', head: 'Get them all.', sub: (kind) => (kind === 'mac' ? 'One click for each app, or Install All.' : 'One tap for each app, or Get All.'),
+  { slug: 'get-every-app', head: 'Get them all,\nin one go.', sub: (kind) => (kind === 'mac' ? 'One click for each app, or Install All.' : 'One tap for each app, or Get All.'),
     async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#setup-slot [data-act="setup"]'); } },
-  // "What's on this iPhone." is wider than the iPhone picture's one line, so the iPhone says it shorter.
-  { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone.' : `What’s on this ${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.', macH: 904,
+  { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone,\nready to open.' : `What’s on this\n${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.', macH: 904,
     async shoot(p) { await tab(p, 'library'); } },
-  { slug: 'share', head: 'Share it.', sub: 'A QR code for any phone.', macH: 776,
+  { slug: 'share', head: 'Share any app\nin a tap.', sub: 'A QR code for any phone.', macH: 776,
     async shoot(p) { await tab(p, 'share'); } },
 ];
 const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
@@ -229,7 +230,7 @@ const FONTS = { fraunces: b64('web/fonts/fraunces.woff2'), instrument: b64('desi
   if (RAW) fs.mkdirSync(RAW, { recursive: true });
   try {
     for (const kind of ONLY) {
-      const heads = STORIES.map((s) => text(s.head, kind));
+      const heads = STORIES.map((s) => (kind === 'mac' ? text(s.head, kind).replace(/\n/g, ' ') : text(s.head, kind)));
       // Every headline in a set has the same number of lines.
       const lines = new Set(heads.map((h) => h.split('\n').length));
       if (lines.size !== 1) throw new Error(`${kind}: headlines of different lengths`);
