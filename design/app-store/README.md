@@ -30,7 +30,7 @@ Fraunces at 560 / opsz 48 / −0.012em is exactly how Cowdrey One sets its title
 - **Copy.** A headline of one or two lines and one sub-line that wraps at most once. Every headline in a set has the
   same number of lines (pass `lines` for the set). The template refuses copy that runs into the device or off the top.
 - **Colour.** Each app has its theme in `THEMES` (a dark ground in the app's own hue, its glow and floor, the ink and
-  sub-line colours). Nothing else changes between apps.
+  sub-line colours, and `desk`, its MacBook desktop's wallpaper). Nothing else changes between apps.
 - **Output.** Opaque RGB PNGs (App Store Connect refuses an alpha channel) at the exact App Store sizes above.
 
 | App | Theme | Its App Store screenshot generator |
@@ -62,7 +62,7 @@ screen) with `desktop()`, then frame it with `device: 'macbook'`:
 ```js
 import { compose, desktop, THEMES } from './store-frame.mjs';
 const screen = await desktop(browser, {
-  theme: THEMES.twodegrees, app: 'Two Degrees', clock: 'Wed Nov 25  9:41 AM', fonts,
+  theme: THEMES.twodegrees, app: 'Two Degrees', fonts,                 // no clock: every app shows MAC_CLOCK
   menuExtra: { text: '55° · 13°', icon: 'sun' },          // the app's menu-bar item, if it has one
   windows: [{ png: windowCapture, w: 800, h: 520, chrome: 'none', lights: true }],   // points; x, y left out = centred
   extras: [{ png: widgetPng, x: 60, y: 80, w: 344, h: 344 }],                      // widgets, under the windows
@@ -71,14 +71,27 @@ const png = await compose(browser, 'mac', { head: 'Every temperature in °F and 
   device: 'macbook', png: screen, file: 'mac-1.png' }, THEMES.twodegrees, fonts);
 ```
 
-- `desktop(browser, { theme, app, windows, extras?, menuExtra?, clock, dock?, fonts? })` returns a 3024 × 1964 RGB
-  PNG: a 1512 × 982 pt screen at 2× with a wallpaper in the app's hue (lighter than the page), a 32 pt macOS menu bar
+- `desktop(browser, { theme, app, windows, extras?, menuExtra?, dock?, fonts? })` returns a 3024 × 1964 RGB
+  PNG: a 1512 × 982 pt screen at 2× with the app's wallpaper (`theme.desk`), a 32 pt macOS menu bar
   (Apple menu, the app's name in bold, File Edit View Window Help; the app's extra, Wi-Fi, a full battery, Control
   Center, the clock) and the windows. Everything is in points.
 - `windows: [{ png, x?, y?, w, h, title?, chrome?, lights? }]`: the window's outer box. `chrome: 'window'` (default)
   adds a 28 pt dark title bar with the traffic lights and `title` (default: `app`) and puts `png` under it; `'none'`
   shows `png` as the whole window, for an app that draws its own title bar (`lights: true` adds the traffic lights).
   10 pt corners, a fine rim and macOS's shadow. Capture the window at 2× its point size.
+- **Which chrome.** An app whose capture already contains its own toolbar or title (a unified/transparent title bar
+  drawn by the app) uses `chrome: 'none', lights: true`. An app whose capture has no title bar uses
+  `chrome: 'window'` with the app's name as the title (the default `title`). Never both, never neither.
+- **Window size.** Windows are shown at their real point size: `w`, `h` are the window's points and the 2× capture
+  is drawn at 0.5 (`scale` 1, the default). Only a window narrower than 600 pt may be enlarged so it reads:
+  `windows[i].scale` from 1 up to 1.5 (the box becomes `w × scale` by `h × scale`, chrome included; `x`, `y` place the
+  enlarged box). Any other `scale` (below 1, above 1.5, or above 1 on a window 600 pt or wider) is refused.
+- **One clock.** The menu bar's clock is `MAC_CLOCK` (`'Wed Nov 25  9:41 AM'`), the default of `desktop()`, so every
+  app's desktop shows the same time. Apps must not pass their own `clock`.
+- **Wallpapers.** Each theme's `desk: [top, middle, bottom]` is its desktop: md indigo ink, pdf raspberry wine,
+  meridian teal night, twodegrees sky blue to a peach dusk, bearings compass blue to ice, goldenhour amber gold,
+  one clay terracotta. Each is lighter than its page's ground and differs from the others at thumbnail size. A
+  custom theme without `desk` gets a wallpaper worked out from its ground's hue.
 - `extras: [{ png, x, y, w, h, radius? }]`: widgets on the desktop (22 pt corners unless `radius`).
 - `menuExtra: { text, icon? }`: `icon` is `'sun'`, an `<svg>` string drawn in white (`currentColor`) or a PNG Buffer.
 - `dock`: left out or `false` (the Dock hidden, as many people keep it), or `{ icon: png }` for a Dock with the app's

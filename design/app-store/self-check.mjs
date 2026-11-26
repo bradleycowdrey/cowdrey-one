@@ -28,7 +28,7 @@ const browser = await chromium.launch();
 try {
   const theme = THEMES.one;
   const screen = await desktop(browser, {
-    theme, app: 'Cowdrey One', clock: 'Tue Nov 24  9:41 AM', fonts,
+    theme, app: 'Cowdrey One', fonts,
     windows: [{ png: capture, w: 1216, h: 760, chrome: 'none', lights: true }],
   });
   expect('desktop.png', screen, MACBOOK.desktop[0] * 2, MACBOOK.desktop[1] * 2);
