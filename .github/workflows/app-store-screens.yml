@@ -1,0 +1,61 @@
+name: App Store screenshots
+
+# Frames Cowdrey One's App Store screenshots on the Cowdrey family standard (design/app-store) and publishes them as a
+# run artifact, for review only. It has no secrets and never sends anything to App Store Connect or Google Play.
+# Kept apart from ios-app.yml on purpose: testflight-public.yml follows every completed "iPhone app" run, so a pull
+# request run there could reach TestFlight, and a screenshot that doesn't fit would hold back a real build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - design/app-store/**
+      - tests/app-store-screens.mjs
+      - web/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/app-store-screens.yml
+  pull_request:
+    paths:
+      - design/app-store/**
+      - tests/app-store-screens.mjs
+      - web/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/app-store-screens.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    name: App Store screenshots (for review)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # Captures the app's screens (web/ in Chromium as the iPhone, iPad and Mac app, with iOS's 9:41 status bar
+      # drawn: there is no simulator capture yet), frames them on the family standard and checks every frame's
+      # type sizes and positions against it (design/app-store/check-measure.js). Copy that doesn't fit stops here.
+      - name: Capture and frame the screenshots
+        run: npm run screens
+
+      - name: Publish the frames for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: |
+            docs/app-store/iphone-*.png
+            docs/app-store/ipad-*.png
+            docs/app-store/mac-*.png
+            docs/app-store/measure.json
+          if-no-files-found: error
