@@ -29,6 +29,7 @@ every app it lists.
   app: Get opens the app’s Mac App Store page (Get All steps through them), and an app that isn’t on the Mac
   App Store opens on the web. Its build leaves the installer out. Like the iPhone and iPad app, it names no other
   platform, browser or system. The Mac app from GitHub (.dmg) is unchanged.
-- **The App Store versions** show no TestFlight or beta, link What’s New to each app’s changelog, leave the
-  update check to the Mac App Store, and their QR code opens a page with no downloads (the web app with
-  `?store=apple`, which the web app honours).
+- **The App Store versions** show no TestFlight, beta or Preview label, link What’s New to each app’s changelog,
+  leave updates to the App Store (no Updates · Check), and their QR code opens a page with no downloads or beta
+  notes (the web app with `?store=apple`, which the web app honours). The iPhone and iPad app’s Share steps share
+  the app, and the Mac App Store version opens Mac App Store pages in the App Store app (`macappstore://`).

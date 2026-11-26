@@ -215,8 +215,32 @@ async function open(ctx, url, errors, name) {
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
     await p.click('.tab[data-tab="share"]'); await p.waitForTimeout(300);
     check(!!(await p.$(`#view-share a[href="${C.hubDownloads.ios}"]`)) && (await p.textContent('#view-share .url')).trim() === C.hubUrl, '… and Share’s “Or get the iPhone app” and QR code as before');
+    check(/Open this page in Safari\..*Add to Home Screen/.test(await p.textContent('#view-share .how')), '… and its Add to Home Screen steps');
+    await p.click('.tab[data-tab="library"]'); await p.waitForTimeout(300);
+    check(!!(await p.$('#view-library [data-act="check"]')), '… and Updates · Check');
+    await p.click('#view-library [data-act="check"]'); await p.waitForTimeout(800);
+    check(/Every app is up to date\.|update/.test(await p.textContent('.toast')), '… which still says what it found');
+    await p.click('.tab[data-tab="discover"]'); await p.waitForTimeout(300);
+    check(/Preview/.test(await p.textContent('#all-apps [data-id="golden-hour"] .status-tag')) && /Preview/.test(await p.textContent('.feature[data-id="golden-hour"] .eyebrow')), '… and Golden Hour’s “Preview” label');
     await ctx.close();
   }
+  // Release notes with a line about a beta: the web keeps it, the web behind an App Store version's link leaves it out.
+  console.log('Release notes with a beta line');
+  for (const [name, url, kept] of [['the web', '', true], ['behind ?store=apple', '?store=apple', false]]) {
+    const { ctx } = await context(browser, base, { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, current);
+    await ctx.route('https://api.github.com/repos/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify({ tag_name: 'v9.9.9', name: 'v9.9.9', published_at: '2026-11-20T12:00:00Z', html_url: 'https://github.com/x',
+        body: '## What’s new\n\n- A clearer map.\n- Join the beta on TestFlight to try widgets first.\n- Public beta of the new compass.' }) }));
+    await ctx.addInitScript((v) => localStorage.setItem('cowdrey-one.terms', JSON.stringify({ v, at: 1 })), C.termsVersion);
+    const p = await open(ctx, base + url, errors, 'beta-notes-' + name);
+    await p.evaluate(() => window.CowdreyOne.checkUpdates(true)); await p.waitForTimeout(1500);
+    await p.evaluate(() => document.querySelector('#all-apps [data-id="bearings"] .main').click()); await p.waitForTimeout(600);
+    const notes = await p.textContent('.sheet #whats-new');
+    check(/A clearer map/.test(notes) && (kept ? /TestFlight/.test(notes) && /Public beta/.test(notes) : !/TestFlight|\bbeta\b/i.test(notes)),
+      `${name}: What’s New ${kept ? 'keeps' : 'leaves out'} the release notes’ beta lines`);
+    await ctx.close();
+  }
+
   console.log('The web app behind an App Store version’s link');
   for (const [name, opts] of [['Mac', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }], ['iPhone', { ...devices['iPhone 15 Pro'] }], ['Android', { ...devices['Pixel 7'] }]]) {
     const { ctx } = await context(browser, base, opts, current);
@@ -374,6 +398,28 @@ async function open(ctx, url, errors, name) {
     await go('discover'); await p.waitForTimeout(250);
   };
 
+  // The iPhone and iPad app: no update check of its own (2.4.5(vii)), no "Preview" label (2.2), and Share's steps
+  // share the app rather than add a web page to the Home Screen; its Mac steps are the Mac App Store's.
+  const iosStoreBehaviour = async (p, where) => {
+    const go = (t) => p.evaluate((t) => document.querySelector(`.side-item[data-tab="${t}"], .tab[data-tab="${t}"]`).click(), t);
+    await go('library'); await p.waitForTimeout(250);
+    check(!(await p.$('#view-library [data-act="check"]')) && !/Updates|Checked|Not checked/.test(await p.textContent('#view-library')), `${where}: the Library has no Updates · Check row`);
+    await p.evaluate(() => window.CowdreyOne.checkUpdates(false)); await p.waitForTimeout(400);
+    check(!/up to date|update available|updates available/.test(await p.evaluate(() => (document.querySelector('.toast') || {}).textContent || '')), `${where}: checking never says “Every app is up to date.”`);
+    await go('discover'); await p.waitForTimeout(250);
+    check(!/Preview/.test(await p.textContent('#all-apps [data-id="golden-hour"]')) && !(await p.$('#all-apps [data-id="golden-hour"] .status-tag')), `${where}: Golden Hour’s row has no “Preview” tag`);
+    check(!/Preview/.test(await p.textContent('.feature[data-id="golden-hour"]')), `${where}: … nor its card’s eyebrow`);
+    await p.evaluate(() => document.querySelector('#all-apps [data-id="golden-hour"] .main').click()); await p.waitForTimeout(500);
+    check(!/Preview/.test(await p.textContent('.sheet .facts')) && /Latest/.test(await p.textContent('.sheet .facts .fact')), `${where}: … nor its page’s Version fact (Latest)`);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    await go('share'); await p.waitForTimeout(250);
+    const steps = await p.$$eval('#view-share .how', (els) => els.map((e) => [e.querySelector('h4').textContent, e.querySelector('.steps').textContent]));
+    const ios = steps.find((x) => /iPhone and iPad/.test(x[0])), mac = steps.find((x) => /^Mac/.test(x[0]));
+    check(ios && !/Safari|Add to Home Screen|Open this page/.test(ios[1]) && /Share/.test(ios[1]), `${where}: Share’s iPhone and iPad steps share the app (${ios && ios[1]})`);
+    check(mac && /Get Cowdrey One on the Mac App Store/.test(mac[1]) && !/Safari|Add to Dock/.test(mac[1]), `${where}: … and its Mac steps get it on the Mac App Store (${mac && mac[1]})`);
+    await go('discover'); await p.waitForTimeout(250);
+  };
+
   console.log('Mac app from the Mac App Store');
   {
     const { ctx, p } = await nativeApp('mac-app-store', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, { meridian: '2.1.4' }, null, 'appstore');
@@ -385,8 +431,9 @@ async function open(ctx, url, errors, name) {
     const webOf = (id) => C.apps.find((a) => a.id === id).platforms.web.get[0].url;
     check(!(await p.$('#setup-slot .ring')) && /6 free apps/.test(await p.textContent('#setup-slot')), 'no count, just the six apps it lists');
     check((await p.getAttribute('#all-apps [data-id="two-degrees"] a.pill', 'href')) === mas && /^https:\/\/apps\.apple\.com\/app\/id\d+/.test(mas), `Two Degrees’ Get goes to its Mac App Store page (${mas})`);
+    const masApp = 'macappstore://apps.apple.com/app/id' + mas.match(/\/id(\d+)/)[1];
     await p.click('#all-apps [data-id="two-degrees"] a.pill'); await p.waitForTimeout(300);
-    check((await calls(p)).includes('url:' + mas) && /Mac App Store/.test(await p.textContent('.toast')), '… which it opens with the system, in the Mac App Store');
+    check((await calls(p)).includes('url:' + masApp) && !(await calls(p)).includes('url:' + mas) && /Mac App Store/.test(await p.textContent('.toast')), `… which it opens in the App Store app (${masApp}), not the browser`);
     for (const id of ['cowdrey-pdf', 'cowdrey-md', 'bearings', 'golden-hour']) {
       const sel = `#all-apps [data-id="${id}"]`;
       check((await p.getAttribute(sel + ' a.pill', 'href')) === webOf(id) && /On the web/.test(await p.textContent(sel + ' .pill-wrap'))
@@ -405,7 +452,7 @@ async function open(ctx, url, errors, name) {
     check((await p.textContent('.sheet [data-act="bulk"]')).trim() === 'Get Two Degrees on the Mac App Store', 'its button opens the one app on the Mac App Store');
     const before = (await calls(p)).length;
     await p.click('.sheet [data-act="bulk"]'); await p.waitForTimeout(400);
-    check((await calls(p)).slice(before).join() === 'url:' + mas, '… in the Mac App Store, and nothing else');
+    check((await calls(p)).slice(before).join() === 'url:' + masApp, '… in the Mac App Store app, and nothing else');
     await p.keyboard.press('Escape'); await p.waitForTimeout(500);
     await p.click('#all-apps [data-id="bearings"] .main'); await p.waitForTimeout(600);
     check((await p.textContent('.sheet .hero-actions .pill')).trim() === 'Open on the web', 'an app’s page says Open on the web for an app not on the Mac App Store');
@@ -422,6 +469,7 @@ async function open(ctx, url, errors, name) {
     await p.evaluate(() => window.CowdreyOne.checkUpdates(false)); await p.waitForTimeout(400);
     check(!/up to date|update available|updates available/.test(await p.evaluate(() => (document.querySelector('.toast') || {}).textContent || '')), '… and checking never says “Every app is up to date.”');
     check(/Every app, on the Mac App Store or the web/.test(await p.textContent('#setup-slot')), 'the set-up card says where the apps come from');
+    check(!/Preview/.test(await p.textContent('#all-apps [data-id="golden-hour"]')) && !/Preview/.test(await p.textContent('.feature[data-id="golden-hour"]')), 'Golden Hour has no “Preview” label');
     await ctx.close();
   }
   console.log('Mac app from GitHub');
@@ -525,6 +573,7 @@ async function open(ctx, url, errors, name) {
     check((await p.$$('#all-apps use[href="#i-android"]')).length === 0, 'the iPhone app doesn’t show Android');
     await noAndroid(p, 'the iPhone app');
     await appStoreLinks(p, 'the iPhone app');
+    await iosStoreBehaviour(p, 'the iPhone app');
     await p.evaluate(() => document.querySelector('#all-apps [data-id="bearings"] .main').click()); await p.waitForTimeout(500);
     check(!/beta|TestFlight/i.test(await p.textContent('.sheet #get-rows')) && (await p.$$('.sheet #get-rows .get-row')).length === 2, 'Bearings’ page offers the App Store and the web, and no TestFlight beta');
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
@@ -563,6 +612,7 @@ async function open(ctx, url, errors, name) {
     check(await p.evaluate(() => window.CowdreyOne.native) === 'ios', 'it knows it is the iPad app');
     await noAndroid(p, 'the iPad app');
     await appStoreLinks(p, 'the iPad app');
+    await iosStoreBehaviour(p, 'the iPad app');
     const cut = await p.evaluate(() => [...document.querySelectorAll('.feature-bar small, #all-apps .sub.clamp')].filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
     check(!cut.length, `every card and app line shows its subtitle in full on the iPad${cut.length ? ` (cut: ${cut.join('; ')})` : ''}`);
     await ctx.close();

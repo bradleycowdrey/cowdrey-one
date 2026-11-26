@@ -214,7 +214,11 @@
   // Downloads load in place (the page stays); stores and web apps open beside this one.
   const linkTarget = (o) => (o.kind === 'apk' || o.kind === 'dmg' ? '' : ' target="_blank" rel="noopener"');
 
+  // The Mac App Store version opens a Mac App Store page with its macappstore:// link, so it opens in the App Store
+  // app itself (an https link to apps.apple.com would open the browser first).
+  const masLink = (url) => { const id = storeId(url); return id ? `macappstore://apps.apple.com/app/id${id}` : url; };
   function openUrl(url, kind) {
+    if (MAS && kind === 'macappstore') url = masLink(url);
     const T = window.__TAURI__;
     if (T && T.opener && T.opener.openUrl) return T.opener.openUrl(url);
     if (T && T.core && T.core.invoke) return T.core.invoke('plugin:opener|open_url', { url });
@@ -458,7 +462,10 @@
   const brand = () => `<div class="brandbar"><img src="icon-192.png" alt=""><span>Cowdrey One</span></div>`;
   const dateLine = () => new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const platIcons = (a) => `<span class="plats" aria-label="On ${SHOWN.filter((p) => offered(a, p)).map((p) => PLAT[p].name).join(', ')}">${SHOWN.filter((p) => offered(a, p)).map((p) => icon(PLAT[p].icon, p === plat() ? 'here' : '')).join('')}</span>`;
-  const tag = (a) => (a.status ? `<span class="status-tag">${esc(a.status)}</span>` : '');
+  // An app's label ("New", "Preview"). The App Store versions leave out "Preview", which reads as a beta there
+  // (guideline 2.2).
+  const statusOf = (a) => (APPLE_STORE && /^preview$/i.test(a.status || '') ? '' : a.status || '');
+  const tag = (a) => (statusOf(a) ? `<span class="status-tag">${esc(statusOf(a))}</span>` : '');
 
   function appRow(a, opts = {}) {
     const sub = opts.sub != null ? opts.sub : esc(a.subtitle);
@@ -475,7 +482,7 @@
     // app's headline and a drawn glimpse of it.
     const face = a.shots
       ? `<img class="feature-shot" src="${shotUrl(a, 1)}" alt="" ${i ? 'loading="lazy" ' : ''}decoding="async">`
-      : `<div class="feature-top"><p class="eyebrow">${esc(a.status || a.category)}</p><h3>${esc(a.headline)}</h3></div>
+      : `<div class="feature-top"><p class="eyebrow">${esc(statusOf(a) || a.category)}</p><h3>${esc(a.headline)}</h3></div>
       <div class="art">${art(a)}</div>`;
     return `<div class="feature${a.shots ? ' has-shot' : ''}" style="${sky(a)}" data-act="open-app" data-id="${a.id}" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${APPS.length}: ${esc(a.name)}${a.shots ? '' : '. ' + esc(a.headline)}">
       ${face}
@@ -580,7 +587,7 @@
         <div class="row pref"><span class="glyph">${icon('device')}</span><span class="main"><span class="title" style="font-weight:400">${APPLE_STORE ? 'Show apps for' : 'Show downloads for'}</span></span><span class="value">${esc(prefs.platform === 'auto' ? 'Automatic' : PLAT[prefs.platform].name)}</span>${icon('chevron', 'chev')}${platSelect}</div>
         <div class="row pref"><span class="glyph" style="background:#5B5FC7">${icon('moon')}</span><span class="main"><span class="title" style="font-weight:400">Appearance</span></span>
           <span class="segmented" role="group" aria-label="Appearance">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, t]) => `<button data-act="appearance" data-v="${v}" aria-pressed="${prefs.appearance === v}">${t}</button>`).join('')}</span></div>
-        ${PLAY || MAS ? '' : `<div class="row pref"><span class="glyph" style="background:#2E8B57">${icon('refresh')}</span><span class="main"><span class="title" style="font-weight:400">Updates</span><span class="sub">${checkedLine()}</span></span><button class="pill" data-act="check" ${checking ? 'disabled' : ''}>Check</button></div>`}
+        ${PLAY || APPLE_STORE ? '' : `<div class="row pref"><span class="glyph" style="background:#2E8B57">${icon('refresh')}</span><span class="main"><span class="title" style="font-weight:400">Updates</span><span class="sub">${checkedLine()}</span></span><button class="pill" data-act="check" ${checking ? 'disabled' : ''}>Check</button></div>`}
         <button class="row pref tap" data-act="about"><span class="glyph" style="background:#6B6760">${icon('info')}</span><span class="main"><span class="title" style="font-weight:400">About Cowdrey One</span></span><span class="value">${VERSION}</span>${icon('chevron', 'chev')}</button>
       </div>
       <p class="group-foot">${foot}</p>
@@ -615,7 +622,9 @@
       how.ios.extra = C.hubDownloads.appstore ? `<a class="link-button" href="${esc(C.hubDownloads.appstore)}" target="_blank" rel="noopener" data-act="ext">Or get Cowdrey One on the App Store</a>` : '';
       how.mac = MAS
         ? { t: 'Mac', s: ['Cowdrey One is in your Applications folder.', 'To keep it in the Dock, Control-click its icon there, then choose Options › Keep in Dock.'] }
-        : { t: 'Mac', s: ['In Safari, choose File › Add to Dock.', 'Cowdrey One opens in its own window, with an icon in the Dock.'] };
+        : { t: 'Mac', s: ['Get Cowdrey One on the Mac App Store.', 'Then every app is a click away, on the Mac App Store or the web.'] };
+      // The iPhone and iPad app is already here: its steps share it, rather than add a web page to the Home Screen.
+      if (NATIVE === 'ios') how.ios.s = ['Tap Share above to send Cowdrey One to a friend, or let them scan the code.', 'It opens Cowdrey One on their iPhone or iPad, with every app one tap away.'];
       how.web = { t: 'Any browser', s: ['Open this page in your browser.', 'Bookmark it, to keep every app one click away.'] };
     }
     // Behind an App Store version's link: no download, and no beta.
@@ -649,7 +658,8 @@
       const l = raw.trim();
       if (/^#{1,6}\s*(downloads?|install|installation|assets|files|checksums?|sha-?256|verify)/i.test(l)) break;
       if (/^#{1,6}\s*what.?s new\b/i.test(l)) continue;   // the section is already called What's New
-      if (APPLE_STORE && (OTHER.test(l) || BETA.test(l))) continue;   // a note about the Android app, which the App Store versions leave out
+      if (APPLE_STORE && OTHER.test(l)) continue;   // a note about the Android app, which the App Store versions leave out
+      if ((APPLE_STORE || NODL) && BETA.test(l)) continue;   // nor a beta, there or behind their link (guideline 2.2)
       if (/^\|/.test(l) || /^(sha-?256|sha1|md5)\b/i.test(l) || /^<?https?:\/\/\S+>?$/.test(l) || /^-{3,}$/.test(l) || /^!\[/.test(l)) continue;
       out.push(raw);
     }
@@ -724,7 +734,7 @@
           <div class="hero-actions">${pill(a, 'light', true)}<button class="round" data-act="share-app" data-id="${a.id}" aria-label="Share ${esc(a.name)}">${icon('share')}</button></div></div></div></div>
       <div class="sheet-pad">
         <div class="facts">
-          <div class="fact"><div class="k">Version</div><div class="v">${esc(latest(a))}</div><div class="c">${a.status ? esc(a.status) : 'Latest'}</div></div>
+          <div class="fact"><div class="k">Version</div><div class="v">${esc(latest(a))}</div><div class="c">${statusOf(a) ? esc(statusOf(a)) : 'Latest'}</div></div>
           <div class="fact"><div class="k">Price</div><div class="v">Free</div><div class="c">Forever</div></div>
           <div class="fact"><div class="k">Platforms</div><div class="v">${plats.length}</div><div class="c">${plats.filter((p) => SHOWN.includes(p)).map((p) => ({ ios: 'iOS', android: 'Android', mac: 'Mac', web: 'Web' })[p]).join(' · ')}</div></div>
           <div class="fact"><div class="k">Category</div><div class="v">${icon({ Weather: 'cloud', Navigation: 'compass', Productivity: 'clock', Writing: 'doc', Documents: 'doc' }[a.category] || 'stack')}</div><div class="c">${esc(a.category)}</div></div>
@@ -937,8 +947,8 @@
     if (ok) { checkedAt = Date.now(); store.set('checkedAt', checkedAt); store.set('releases', releases); }
     else checkFailed = true;
     refresh();
-    // The Mac App Store version leaves updates to the Mac App Store, and never says whether apps are up to date (2.4.5).
-    if (!quiet && !MAS) {
+    // The App Store versions leave updates to the App Store, and never say whether apps are up to date (2.4.5).
+    if (!quiet && !APPLE_STORE) {
       const u = updates().length;
       toast(checkFailed ? 'Couldn’t check for updates. Are you online?' : u ? `${u} ${u === 1 ? 'update' : 'updates'} available.` : 'Every app is up to date.');
     }
