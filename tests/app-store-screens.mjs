@@ -29,8 +29,10 @@ const RAW = ARG.raw ? path.resolve(String(ARG.raw)) : null;
 
 /* ---------------- the devices ---------------- */
 // Screens in points, and the safe areas of the real screens (iPhone 16 Pro Max and 13-inch iPad Pro), as Cowdrey.PDF's
-// generator puts them in. The Mac app is captured as its whole window at its real size (1180 x 820, tauri.conf.json):
-// it lays its title bar over the top 28 points (titleBarStyle Overlay, hiddenTitle), so the template adds only the
+// generator puts them in. The Mac app is captured as its whole window at its real width (1180, tauri.conf.json) and
+// a little taller than it opens (872, not 820), as someone would size it: the sheets (Get Every App, an app's page)
+// are 60 points shorter than the window, so at 872 each one ends cleanly below a whole row, with nothing cut mid-row.
+// The window lays its title bar over the top 28 points (titleBarStyle Overlay, hiddenTitle), so the template adds only the
 // traffic lights there, and the window is shown on the family's MacBook desktop (desktop(), device 'macbook').
 const UA = {
   iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
@@ -40,7 +42,7 @@ const UA = {
 const DEVICES = {
   iphone: { w: 440, h: 956, scale: 3, touch: true, safe: { top: 62, bottom: 34 }, name: 'iPhone' },
   ipad: { w: 1032, h: 1376, scale: 2, touch: true, safe: { top: 24, bottom: 20 }, name: 'iPad' },
-  mac: { w: 1180, h: 820, scale: 2, touch: false, safe: { top: 0, bottom: 0 }, name: 'Mac' },
+  mac: { w: 1180, h: 872, scale: 2, touch: false, safe: { top: 0, bottom: 0 }, name: 'Mac' },
 };
 // What's on each device: the iPhone and iPad app sees Two Degrees by its link; the Mac app sees what's in
 // Applications (Meridian from its .dmg, Two Degrees from the Mac App Store).
@@ -49,8 +51,10 @@ const INSTALLED = {
   ipad: { twodegrees: true },
   mac: { meridian: { version: '2.1.4' }, 'two-degrees': { version: '2.3.5', appStore: true } },
 };
-// A Tuesday morning, for the date on Discover and "Checked 9:41 AM" (and the Mac's menu-bar clock).
-const NOW = '2026-11-24T09:41:00-05:00', ZONE = 'America/New_York', CLOCK = 'Tue Nov 24  9:41 AM';
+// A Tuesday morning, for the date on Discover and "Checked 9:41 AM". The Mac's is the Wednesday morning that the
+// family's MacBook desktop shows in its menu bar (MAC_CLOCK, the same for every app), so the two agree.
+const NOW = { iphone: '2026-11-24T09:41:00-05:00', ipad: '2026-11-24T09:41:00-05:00', mac: '2026-11-25T09:41:00-05:00' };
+const ZONE = 'America/New_York';
 
 /* ---------------- each app's latest release on GitHub, with notes from its changelog ---------------- */
 const RELEASES = {
@@ -125,7 +129,7 @@ async function app(kind) {
   const ctx = await devices[kind].newContext({
     viewport: null, hasTouch: d.touch, userAgent: UA[kind], colorScheme: 'dark', locale: 'en-US', timezoneId: ZONE,
   });
-  await ctx.clock.setFixedTime(new Date(NOW));
+  await ctx.clock.setFixedTime(new Date(NOW[kind]));
   // The device's safe areas, which a browser doesn't have (env() is 0 there).
   let sheet = css;
   for (const [side, v] of Object.entries({ top: d.safe.top, bottom: d.safe.bottom })) sheet = sheet.split(`env(safe-area-inset-${side}, 0px)`).join(v + 'px');
@@ -156,6 +160,10 @@ async function app(kind) {
 const tap = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel);
 const wide = (p) => p.evaluate(() => innerWidth >= 900);
 const tab = async (p, t) => tap(p, (await wide(p)) ? `.side-item[data-tab="${t}"]` : `.tab[data-tab="${t}"]`);
+// On the Mac a sheet stops 30 points above the window's bottom, so Discover shows below it. Scrolled down to All Apps
+// first (50 points short of its end), only Discover's empty bottom margin shows there, not a list cut off by the
+// window, and the window's top edge falls between the carousel and the set-up card rather than through either.
+const toEnd = async (p) => { if (await wide(p)) await p.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight - innerHeight - 50)); };
 
 /* ---------------- the stories ---------------- */
 // One idea each, in the order of the App Store pictures (and of Cowdrey One's Google Play screenshots).
@@ -163,9 +171,9 @@ const STORIES = [
   { slug: 'discover', head: 'Every app, one place.', sub: 'All of Bradley Cowdrey’s free apps.',
     async shoot() {} },
   { slug: 'app-page', head: 'Know each app.', sub: 'What it does, what’s new, where to get it.',
-    async shoot(p) { await tap(p, '#all-apps [data-id="meridian"] .main'); } },
+    async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#all-apps [data-id="meridian"] .main'); } },
   { slug: 'get-every-app', head: 'Get them all.', sub: (kind) => (kind === 'mac' ? 'One click for each app, or Install All.' : 'One tap for each app, or Get All.'),
-    async shoot(p) { await tap(p, '#setup-slot [data-act="setup"]'); } },
+    async shoot(p, kind) { if (kind === 'mac') await toEnd(p); await tap(p, '#setup-slot [data-act="setup"]'); } },
   // "What's on this iPhone." is wider than the iPhone picture's one line, so the iPhone says it shorter.
   { slug: 'library', head: (kind) => (kind === 'iphone' ? 'On this iPhone.' : `What’s on this ${DEVICES[kind].name}.`), sub: 'Open what you have, get what you don’t.',
     async shoot(p) { await tab(p, 'library'); } },
@@ -177,7 +185,7 @@ const text = (v, kind) => (typeof v === 'function' ? v(kind) : v);
 async function capture(kind, story) {
   const d = DEVICES[kind];
   const p = await app(kind);
-  await story.shoot(p);
+  await story.shoot(p, kind);
   // Sheets slide up and views fade in; then every picture on the screen has loaded.
   await p.waitForTimeout(900);
   await p.waitForFunction(() => [...document.images].every((i) => {
@@ -197,7 +205,7 @@ async function capture(kind, story) {
 // The MacBook's screen: Cowdrey One's window (its real size, centred below the menu bar) with its traffic lights
 // over the app's own title-bar strip, the menu bar showing Cowdrey One, the Dock hidden.
 const macDesktop = (png) => desktop(browser, {
-  theme: THEMES.one, app: 'Cowdrey One', clock: CLOCK, fonts: FONTS,
+  theme: THEMES.one, app: 'Cowdrey One', fonts: FONTS,
   windows: [{ png, w: DEVICES.mac.w, h: DEVICES.mac.h, chrome: 'none', lights: true }],
 });
 
