@@ -259,6 +259,44 @@ async function open(ctx, url, errors, name) {
     await ctx.close();
   }
 
+  // The Mac App Store version (desktop/build.mjs, STORE=appstore) and the iPhone app name and show no other platform
+  // (App Review guideline 2.3.10): no Android anywhere, in words or icons, on any screen or app page.
+  const noAndroid = async (p, where) => {
+    const seen = [];
+    const look = async (what) => {
+      const t = await p.evaluate(() => document.body.innerText + ' ' + [...document.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).join(' '));
+      if (/Android|Google Play/.test(t) || (await p.$$('use[href="#i-android"]')).length) seen.push(what);
+    };
+    const go = (t) => p.evaluate((t) => document.querySelector(`.side-item[data-tab="${t}"], .tab[data-tab="${t}"]`).click(), t);
+    for (const t of ['discover', 'library', 'share']) { await go(t); await p.waitForTimeout(250); await look(t); }
+    await go('discover'); await p.waitForTimeout(250);
+    for (const a of C.apps) {
+      await p.evaluate((id) => document.querySelector(`#all-apps [data-id="${id}"] .main`).click(), a.id); await p.waitForTimeout(350);
+      await look(a.name);
+      await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    }
+    await go('library'); await p.waitForTimeout(250);
+    await p.evaluate(() => document.querySelector('#view-library [data-act="about"]').click()); await p.waitForTimeout(350);
+    await look('About');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+    await go('discover'); await p.waitForTimeout(250);
+    check(!seen.length, `${where} shows no Android anywhere${seen.length ? ` (it does on ${seen.join(', ')})` : ''}`);
+  };
+
+  console.log('Mac app from the Mac App Store');
+  {
+    const { ctx, p } = await nativeApp('mac-app-store', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, { meridian: '2.1.4' }, null, 'appstore');
+    check(await p.evaluate(() => window.CowdreyOne.native) === 'mac', 'it knows it is the Mac app');
+    await noAndroid(p, 'the Mac App Store version');
+    await ctx.close();
+  }
+  console.log('Mac app from GitHub');
+  {
+    const { ctx, p } = await nativeApp('mac-app-dmg', { viewport: { width: 1440, height: 900 }, userAgent: UA.mac }, {});
+    check((await p.$$('#all-apps use[href="#i-android"]')).length > 0, 'the .dmg version still shows which apps are on Android');
+    await ctx.close();
+  }
+
   console.log('Android app');
   {
     const { ctx, p } = await nativeApp('android-app', { ...devices['Pixel 7'] }, { 'com.bradcowdrey.twodegrees': '1.0.0' });
@@ -334,6 +372,7 @@ async function open(ctx, url, errors, name) {
   {
     const { ctx, p } = await nativeApp('iphone-app', { ...devices['iPhone 15 Pro'] }, {});
     check((await p.$$('#all-apps use[href="#i-android"]')).length === 0, 'the iPhone app doesn’t show Android');
+    await noAndroid(p, 'the iPhone app');
     await p.click('#setup-slot [data-act="setup"]'); await p.waitForTimeout(400);
     const onStore = C.apps.filter((a) => a.platforms.ios && a.platforms.ios.get[0].kind === 'appstore').length;
     check((await p.textContent('.sheet [data-act="bulk"]')).trim() === `Get All (${onStore})`, `Get All covers the ${onStore} apps on the App Store`);

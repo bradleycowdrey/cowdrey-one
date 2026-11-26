@@ -62,8 +62,24 @@
   const NATIVE = isTauri ? detected.p : null;
   const tauri = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
   const nativeCall = (method, args) => tauri('plugin:installer|native', { method, args: args || {} });
-  // App Review turns down iPhone apps that point to other phone platforms, so the iPhone app leaves Android out.
-  const SHOWN = NATIVE === 'ios' ? ORDER.filter((p) => p !== 'android') : ORDER;
+  // App Review turns down apps that name or show other platforms (guideline 2.3.10), so the apps from Apple's App
+  // Stores leave Android out: its name, its icon and its steps. They are the iPhone and iPad app (only ever from the
+  // App Store or TestFlight) and the Mac App Store version of the Mac app (desktop/build.mjs with STORE=appstore adds
+  // store.js, which sets COWDREY_STORE). The Mac app from GitHub (.dmg) and the web keep every platform.
+  const APPLE_STORE = NATIVE === 'ios' || (NATIVE === 'mac' && window.COWDREY_STORE === 'appstore');
+  const SHOWN = APPLE_STORE ? ORDER.filter((p) => p !== 'android') : ORDER;
+  // Words about the apps (their features, the About page), with Android taken out of a list of platforms in the App
+  // Store versions: "Mac, iPhone, iPad and Android" becomes "Mac, iPhone and iPad".
+  const OTHER = /\b(?:Android|Google Play)\b/;
+  function apple(text) {
+    if (!APPLE_STORE) return text;
+    return String(text)
+      .replace(/, Android(?: phones?| tablets?)?(?=,)/g, '')
+      .replace(/((?:[\w.]+, )*[\w.]+),? (and|or) Android(?: phones?| tablets?)?\b/g, (m, list, conj) => {
+        const items = list.split(', '), last = items.pop();
+        return items.length ? `${items.join(', ')} ${conj} ${last}` : last;
+      });
+  }
   // The Android app from Google Play (desktop/build.mjs with STORE=play adds store.js, which sets COWDREY_STORE).
   // Google Play doesn't let an app install other apps or download APKs, so there every Android app comes from its
   // own Google Play page, and Play keeps it up to date. The Android app from GitHub installs APKs, as before.
@@ -531,7 +547,7 @@
       ${brand()}<header class="large-head"><div><p class="eyebrow">Bradley Cowdrey’s apps</p><h1 class="large-title" id="t-share">${desk ? 'Get on Your Phone' : 'Share'}</h1></div></header>
       <section class="qr-card"><div class="qr">${qrSvg(url)}<img src="icon-192.png" alt=""></div>
         <div><h3>${desk ? 'Point your phone’s camera here' : 'Share every app'}</h3>
-          <p>${desk ? 'Scan this with your iPhone or Android phone to open Cowdrey One there. Then each app is one tap away, with the right download for that phone.' : 'Show this code to a friend, or send the link. It opens every app with the right download for their phone or computer.'}</p>
+          <p>${desk ? `Scan this with your ${APPLE_STORE ? 'iPhone' : 'iPhone or Android phone'} to open Cowdrey One there. Then each app is one tap away, with the right download for that phone.` : 'Show this code to a friend, or send the link. It opens every app with the right download for their phone or computer.'}</p>
           <div class="actions"><button class="button" data-act="share-hub">${icon('share')}Share</button><button class="button quiet" data-act="copy-hub">${icon('link')}Copy Link</button></div>
           <div class="url">${esc(url)}</div></div></section>
       <p class="group-label">Keep Cowdrey One on your devices</p>
@@ -554,6 +570,7 @@
       const l = raw.trim();
       if (/^#{1,6}\s*(downloads?|install|installation|assets|files|checksums?|sha-?256|verify)/i.test(l)) break;
       if (/^#{1,6}\s*what.?s new\b/i.test(l)) continue;   // the section is already called What's New
+      if (APPLE_STORE && OTHER.test(l)) continue;   // a note about the Android app, which the App Store versions leave out
       if (/^\|/.test(l) || /^(sha-?256|sha1|md5)\b/i.test(l) || /^<?https?:\/\/\S+>?$/.test(l) || /^-{3,}$/.test(l) || /^!\[/.test(l)) continue;
       out.push(raw);
     }
@@ -632,8 +649,8 @@
         </div>
         <div id="whats-new">${whatsNew(a)}</div>
         <div class="section-head"><h2>About</h2></div>
-        <p class="prose">${esc(a.about)}</p>
-        <ul class="bullets">${a.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+        <p class="prose">${esc(apple(a.about))}</p>
+        <ul class="bullets">${a.features.map((f) => `<li>${esc(apple(f))}</li>`).join('')}</ul>
         <div class="section-head"><h2>Get It On</h2></div>
         <div class="group" id="get-rows">${getRows(a)}</div>
         <p class="group-foot">${a.platforms[plat()] ? '' : `${esc(a.name)} isn’t made for ${esc(PLAT[plat()].name)} yet. The web version works in any browser.`}</p>
@@ -700,7 +717,7 @@
   function aboutPage() {
     return `<div class="welcome" style="padding-top:44px"><img src="bradley.jpg" alt="" style="border-radius:50%;width:84px;height:84px">
         <h2 id="sheet-title" style="margin-bottom:8px">Bradley Cowdrey</h2><p style="color:var(--ink-2);margin:0 0 4px">Founder. Operator. Always learning.</p>
-        <p style="color:var(--ink-2);margin:0 0 22px;font-size:15px">Small, free, open-source apps for iPhone, iPad, Android, Mac and the web.</p></div>
+        <p style="color:var(--ink-2);margin:0 0 22px;font-size:15px">${apple('Small, free, open-source apps for iPhone, iPad, Android, Mac and the web.')}</p></div>
       <div class="sheet-pad"><div class="group">
         <a class="row info tap" href="${C.developer.url}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">bradcowdrey.com</span><span class="v"></span>${icon('chevron', 'chev')}</a>
         <a class="row info tap" href="${C.developer.github}" target="_blank" rel="noopener" data-act="ext"><span class="k" style="color:var(--clay-text)">Every app on GitHub</span><span class="v"></span>${icon('chevron', 'chev')}</a>
@@ -931,7 +948,7 @@
       case 'allow-settings': nativeCall('openInstallSettings').catch(() => {}); closeSheet(); break;
       case 'check': checkUpdates(false); break;
       case 'appearance': prefs.appearance = t.dataset.v; savePrefs(); applyTheme(); renderLibrary(); break;
-      case 'share-hub': share('Cowdrey One', 'Every free app by Bradley Cowdrey, for iPhone, Android, Mac and the web.', C.hubUrl); break;
+      case 'share-hub': share('Cowdrey One', apple('Every free app by Bradley Cowdrey, for iPhone, Android, Mac and the web.'), C.hubUrl); break;
       case 'copy-hub': copy(C.hubUrl); break;
       case 'share-app': share(a.name, `${a.name}: ${a.subtitle}. Free, by Bradley Cowdrey.`, C.hubUrl + '?app=' + a.id); break;
       case 'install': if (installEvent) { installEvent.prompt(); installEvent.userChoice.finally(() => { installEvent = null; refresh(); }); } break;
